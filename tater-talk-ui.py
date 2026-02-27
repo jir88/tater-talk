@@ -108,6 +108,14 @@ class ChatDemo:
                 ui.switch('Dark mode').bind_value(self.dark_setting)
                 # main LLM controls
                 ui.input(
+                    label="Main LLM API key:",
+                    value="sk-placeholder"
+                ).classes("w-full")
+                ui.input(
+                    label="Main LLM URL:",
+                    value="http://127.0.0.1:8080/v1"
+                ).classes("w-full")
+                ui.input(
                     label="Main LLM:",
                     placeholder="LLM name"
                 ).classes("w-full")
@@ -115,6 +123,14 @@ class ChatDemo:
                     label="Main LLM sampling parameters:"
                 ).classes("w-full")
                 # memory LLM controls
+                ui.input(
+                    label="Memory LLM API key:",
+                    value="sk-placeholder"
+                ).classes("w-full")
+                ui.input(
+                    label="Memory LLM URL:",
+                    value="http://127.0.0.1:8080/v1"
+                ).classes("w-full")
                 ui.input(
                     label="Memory LLM:",
                     placeholder="LLM name"
