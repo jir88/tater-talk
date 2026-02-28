@@ -1,9 +1,32 @@
 import asyncio
+import uuid
 
-from nicegui import ui, events
+from nicegui import app, ui, events
+
+from root_cellar.llm import OpenAILLM
+from root_cellar.entity import JSONEntityManager
+from root_cellar.manager import ChatThread, StructuredHierarchicalMemory, StructuredHierarchicalManager
 
 class ChatDemo:
     def __init__(self):
+        # set up LLM backend
+        llm = OpenAILLM(model="gemma-3-4B-it-UD-Q4_K_XL-cpu")
+        # separate LLM for summarizing
+        summary_llm = OpenAILLM(model="gemma-3-4B-it-UD-Q4_K_XL-cpu")
+        # initialize session manager
+        entity_manager = JSONEntityManager(llm=summary_llm)
+        chat_thread = ChatThread(session_id=str(uuid.uuid4()), system_prompt="")
+        chat_memory = StructuredHierarchicalMemory(
+            summary_llm=summary_llm,
+            chat_thread=chat_thread,
+            entity_manager=entity_manager
+        )
+        cs = StructuredHierarchicalManager(
+            llm=llm,
+            chat_memory=chat_memory
+        )
+        # put session data in volatile storage
+        app.storage.client['manager'] = cs
         # conversation data
         self.system_prompt = ""
         self.messages = []
@@ -20,6 +43,7 @@ class ChatDemo:
         self.setup_ui()
 
     def setup_ui(self):
+        chat_manager = app.storage.client['manager']
         # define navigation tabs
         with ui.tabs().classes('w-full') as tabs:
             tab_main = ui.tab('Main')
