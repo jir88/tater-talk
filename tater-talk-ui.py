@@ -1,13 +1,20 @@
-import asyncio
+import json
 import uuid
 
-from nicegui import app, ui, events
+from nicegui import app, binding, ui, events, elements
+from typing import List
 
 from root_cellar.llm import OpenAILLM
 from root_cellar.entity import JSONEntityManager
 from root_cellar.manager import ChatThread, StructuredHierarchicalMemory, StructuredHierarchicalManager
 
 class ChatDemo:
+    # make UI settings into bindable properties to make updates more efficient
+    main_llm_key = binding.BindableProperty()
+    main_llm_url = binding.BindableProperty()
+    main_llm_model = binding.BindableProperty()
+    main_llm_samp = binding.BindableProperty()
+
     def __init__(self):
         # set up LLM backend
         llm = OpenAILLM(model="gemma-3n-E4B-it-UD-Q5_K_XL-cpu")
@@ -40,6 +47,30 @@ class ChatDemo:
         self.memory_container = None
         # scroll area to put archived messages in
         self.archive_container = None
+        # LLM settings
+        self.main_llm_key = cs.llm.api_key
+        self.main_llm_url = cs.llm.base_url
+        self.main_llm_model = cs.llm.model
+        self.main_llm_samp = json.dumps(
+            cs.llm.sampling_options,
+            indent=2
+        )
+        # # memory LLM controls
+        # ui.input(
+        #     label="Memory LLM API key:",
+        #     value="sk-placeholder"
+        # ).classes("w-full")
+        # ui.input(
+        #     label="Memory LLM URL:",
+        #     value="http://127.0.0.1:8080/v1"
+        # ).classes("w-full")
+        # ui.input(
+        #     label="Memory LLM:",
+        #     placeholder="LLM name"
+        # ).classes("w-full")
+        # ui.textarea(
+        #     label="Memory LLM sampling parameters:"
+        # ).classes("w-full")
         self.setup_ui()
 
     def setup_ui(self):
@@ -54,11 +85,12 @@ class ChatDemo:
         with ui.tab_panels(tabs, value=tab_main).classes('w-7/8'):
             self.main_panel = ui.tab_panel(tab_main)
             with self.main_panel:
-                ta_sys_msg = ui.textarea(
-                    label="System message:"
+                self.ta_sys_msg = ui.textarea(
+                    label="System message:",
+                    value=chat_manager.chat_memory.chat_thread.system_prompt
                 )
-                ta_sys_msg.classes("w-full")
-                ta_sys_msg.bind_value(target_object=self, target_name="system_prompt")
+                self.ta_sys_msg.classes("w-full")
+                self.ta_sys_msg.on("blur", handler=self.update_system_prompt)
                 ui.checkbox(
                     text="Manual editing mode",
                     value=False
@@ -117,7 +149,10 @@ class ChatDemo:
                 ta_entity_prompt.classes("w-full")
                 # list of entities
                 with ui.row().classes("w-full"):
-                    ui.select(options=[])
+                    ui.select(
+                        options=[],
+                        multiple=False,
+                    )
                     with ui.column().classes("w-2/3"):
                         ui.input(placeholder="Entity name").classes("w-full")
                         ui.textarea(placeholder="Entity description").classes("w-full")
@@ -131,21 +166,33 @@ class ChatDemo:
                 # toggle to control light/dark theme
                 ui.switch('Dark mode').bind_value(self.dark_setting)
                 # main LLM controls
-                ui.input(
+                # main API key
+                input_element = ui.input(
                     label="Main LLM API key:",
-                    value="sk-placeholder"
+                    value="sk-placeholder",
                 ).classes("w-full")
-                ui.input(
+                input_element.on("blur", self.update_llm_settings)
+                input_element.bind_value(self, 'main_llm_key')
+                # main LLM URL
+                input_element = ui.input(
                     label="Main LLM URL:",
                     value="http://127.0.0.1:8080/v1"
                 ).classes("w-full")
-                ui.input(
+                input_element.on("blur", self.update_llm_settings)
+                input_element.bind_value(self, 'main_llm_url')
+                # main LLM name
+                input_element = ui.input(
                     label="Main LLM:",
                     placeholder="LLM name"
                 ).classes("w-full")
-                ui.textarea(
+                input_element.on("blur", self.update_llm_settings)
+                input_element.bind_value(self, 'main_llm_model')
+                # main LLM sampling parameters
+                input_element = ui.textarea(
                     label="Main LLM sampling parameters:"
                 ).classes("w-full")
+                input_element.on("blur", self.update_llm_settings)
+                input_element.bind_value(self, 'main_llm_samp')
                 # memory LLM controls
                 ui.input(
                     label="Memory LLM API key:",
@@ -182,13 +229,20 @@ class ChatDemo:
 
         # Process stream
         full_response = ""
-        async for chunk in self.mock_stream():
-            full_response += chunk
-            print(chunk, end="", flush=True)  # Shows up in terminal
-            part.set_content(full_response)
+
+    def update_system_prompt(self):
+        """Pull the current value of ta_sys_msg and push it into the system prompt."""
+        app.storage.client['manager'].chat_memory.chat_thread.system_prompt = self.ta_sys_msg.value
     
-    def update_system_prompt():
-        pass
+    def update_llm_settings(self):
+        """Update chat manager with current LLM settings."""
+        print("Updating LLM settings!")
+        manager = app.storage.client['manager']
+        # main LLM settings
+        manager.llm.api_key = self.main_llm_key
+        manager.llm.base_url = self.main_llm_url
+        manager.llm.model = self.main_llm_model
+        manager.llm.sampling_options = json.loads(s=self.main_llm_samp)
 
     async def handle_upload(self, e: events.UploadEventArguments):
         """
