@@ -46,7 +46,7 @@ class ChatDemo:
         self.dark_setting = ui.dark_mode(value=True)
         self.main_panel = None
         # scroll area to put the messages in
-        self.message_container = None
+        self.message_container:elements.scroll_area.ScrollArea = None
         # list of chat messages in case we need to mess with them
         self.chat_message_list:List[elements.chat_message.ChatMessage] = []
         # text input containing the user's message
@@ -375,5 +375,30 @@ class ChatDemo:
         self.summary_llm_model = summary_llm.model
         self.summary_llm_samp = json.dumps(summary_llm.sampling_options, indent=2)
 
+        # update the system message
+        self.ta_sys_msg.value = app.storage.client['manager'].chat_memory.chat_thread.system_prompt
+        # update the list of messages
+        self.refresh_message_list()
+
+    def refresh_message_list(self):
+        """Delete current message list in the GUI and rebuild it from the chat manager."""
+        # clear the message elements
+        self.message_container.clear()
+        # clear the list where we keep track of message elements
+        self.chat_message_list = []
+        # add the conversation messages back
+        chat_manager = app.storage.client['manager']
+        with self.message_container:
+            for msg in chat_manager.chat_memory.chat_thread.messages:
+                is_sent = msg['role'] == "user"
+                current_message = ui.chat_message(
+                    name=msg['role'],
+                    sent=is_sent
+                )
+                # add it to the list of messages
+                self.chat_message_list.append(current_message)
+                # format content as markdown
+                with current_message:
+                    ui.markdown(msg['content'])
 demo = ChatDemo()
 ui.run(host='127.0.0.1', port=9091, title="Tater Talk")
