@@ -42,7 +42,12 @@ class ChatDemo:
         self.main_panel = None
         # scroll area to put the messages in
         self.message_container = None
-        self.current_message = None
+        # list of chat messages in case we need to mess with them
+        self.chat_message_list:List[elements.chat_message.ChatMessage] = []
+        # text input containing the user's message
+        self.input_message:elements.textarea.Textarea = None
+        # label for reporting generation speed
+        self.label_gen_speed = None
         # scroll area to put memories in
         self.memory_container = None
         # scroll area to put archived messages in
@@ -97,10 +102,12 @@ class ChatDemo:
                 )
                 self.message_container = ui.scroll_area().classes("w-full")
                 with ui.row(align_items="center").classes("w-full"):
-                    ui.input().classes("w-1/2")
+                    self.input_message = ui.textarea().classes("w-1/2")
+                    self.input_message.on("keydown.enter", self.send)
                     ui.button(icon="send", on_click=self.send)
-                    ui.button("Regenerate")
-                    ui.button("Continue")
+                    ui.button(icon="replay", on_click=self.regenerate_response)
+                # insert label to display generation speed
+                self.label_gen_speed = ui.label("Response generation rate: -- Tk/sec | Context length: 0")
                 with ui.row():
                     # file uploader to select a saved session
                     saved_session_uploader = ui.upload(
@@ -115,7 +122,7 @@ class ChatDemo:
                     # button for saving the current session
                     ui.button("Save session")
             with ui.tab_panel(self.tab_memory):
-                ta_sum_prompt = ui.textarea(
+                ui.textarea(
                     label="Summarization prompt:"
                 ).classes("w-full")
                 with ui.row().classes("w-full"):
@@ -210,25 +217,122 @@ class ChatDemo:
                     label="Memory LLM sampling parameters:"
                 ).classes("w-full")
 
-    async def mock_stream(self):
-        """Simulate streaming response"""
-        response = "Hello! This is a test message that should stream word by word."
-        for word in response.split():
-            yield word + " "
-            await asyncio.sleep(0.5)
+    async def send(self, e:events.GenericEventArguments):
+        # if user pressed shift+enter, add a newline
+        if hasattr(e, 'args') and e.args['shiftKey']:
+            self.input_message.value += "\n"
+            return
+        # otherwise, send the message
 
-    async def send(self):
+        # get the chat manager
+        manager = app.storage.client['manager']
+        # get the message the user wants to send
+        msg = self.input_message.value.strip()
+        # add it to the manager
+        manager.append_message({
+            'role': 'user',
+            'content': msg,
+        })
+        # disable the message box while LLM is responding
+        self.input_message.disable()
+        # clear the message box
+        self.input_message.value = ""
         # Create message immediately with loading text
         with self.message_container:
-            self.current_message = ui.chat_message(
-                name="Bot",
-                text_html=True,
+            # add user message as outgoing message
+            user_message = ui.chat_message(name="User", sent=True)
+            # add it to the list of messages
+            self.chat_message_list.append(user_message)
+            # put in the content
+            with user_message:
+                ui.markdown(content=msg)
+            # add placeholder LLM message while we wait for response
+            current_message = ui.chat_message(
+                name="Assistant"
             )
-            with self.current_message:
-                part = ui.html("Thinking...")
+            # add it to the list of messages
+            self.chat_message_list.append(current_message)
+            with current_message:
+                part = ui.markdown("Thinking...")
+            # scroll new message into view
+            self.message_container.scroll_to(percent=1.0)
 
         # Process stream
+        o_gen = manager.get_response(stream=True)
         full_response = ""
+        async for chunk in o_gen:
+            response = chunk['response']
+            if response is not None:
+                full_response += response
+                # print(response, end="", flush=True)  # Shows up in terminal
+                part.set_content(full_response)
+            if chunk.get('predicted_per_second') is not None:
+                context_length = chunk['cache_n'] + chunk['prompt_n'] + chunk['predicted_n']
+                self.label_gen_speed.text = "Response generation rate: " + str(round(chunk['predicted_per_second'], 2)) + \
+                    " Tk/sec | Context length: " + str(context_length)
+            # scroll content into view, in case we've wrapped to a new line
+            self.message_container.scroll_to(percent=1.0)
+        manager.append_message({
+            'role': 'assistant',
+            'content': full_response
+        })
+        # enable input again
+        self.input_message.enable()
+        self.input_message.run_method("focus")
+    
+    async def regenerate_response(self, e:events.GenericEventArguments):
+        """
+        Deletes the last AI response and regenerates it.
+        """
+        # if we don't have any messages, there's nothing to regenerate
+        if len(self.chat_message_list) == 0:
+            ui.notify("There is no LLM message to regenerate!", type='warning')
+            return
+
+        # get the chat manager
+        manager = app.storage.client['manager']
+        # remove the last message, which will be the LLM message we want to regenerate
+        manager.chat_memory.chat_thread.messages.pop()
+        # also remove it from the GUI
+        last_chat_message = self.chat_message_list.pop()
+        last_chat_message.delete()
+        # disable the message box while LLM is responding
+        self.input_message.disable()
+        # Create message immediately with loading text
+        with self.message_container:
+            # add placeholder LLM message while we wait for response
+            current_message = ui.chat_message(
+                name="Assistant"
+            )
+            # add it to the list of messages
+            self.chat_message_list.append(current_message)
+            with current_message:
+                part = ui.markdown("Thinking...")
+            # scroll new message into view
+            self.message_container.scroll_to(percent=1.0)
+
+        # Process stream
+        o_gen = manager.get_response(stream=True)
+        full_response = ""
+        async for chunk in o_gen:
+            response = chunk['response']
+            if response is not None:
+                full_response += response
+                # print(response, end="", flush=True)  # Shows up in terminal
+                part.set_content(full_response)
+            if chunk.get('predicted_per_second') is not None:
+                context_length = chunk['cache_n'] + chunk['prompt_n'] + chunk['predicted_n']
+                self.label_gen_speed.text = "Response generation rate: " + str(round(chunk['predicted_per_second'], 2)) + \
+                    " Tk/sec | Context length: " + str(context_length)
+            # scroll content into view, in case we've wrapped to a new line
+            self.message_container.scroll_to(percent=1.0)
+        manager.append_message({
+            'role': 'assistant',
+            'content': full_response
+        })
+        # enable input again
+        self.input_message.enable()
+        self.input_message.run_method("focus")
 
     def update_system_prompt(self):
         """Pull the current value of ta_sys_msg and push it into the system prompt."""
