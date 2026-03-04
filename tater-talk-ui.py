@@ -15,6 +15,11 @@ class ChatDemo:
     main_llm_model = binding.BindableProperty()
     main_llm_samp = binding.BindableProperty()
 
+    summary_llm_key = binding.BindableProperty()
+    summary_llm_url = binding.BindableProperty()
+    summary_llm_model = binding.BindableProperty()
+    summary_llm_samp = binding.BindableProperty()
+
     def __init__(self):
         # set up LLM backend
         llm = OpenAILLM(model="gemma-3n-E4B-it-UD-Q5_K_XL-cpu")
@@ -53,29 +58,22 @@ class ChatDemo:
         # scroll area to put archived messages in
         self.archive_container = None
         # LLM settings
-        self.main_llm_key = cs.llm.api_key
-        self.main_llm_url = cs.llm.base_url
-        self.main_llm_model = cs.llm.model
+        self.main_llm_key = llm.api_key
+        self.main_llm_url = llm.base_url
+        self.main_llm_model = llm.model
         self.main_llm_samp = json.dumps(
-            cs.llm.sampling_options,
+            llm.sampling_options,
             indent=2
         )
-        # # memory LLM controls
-        # ui.input(
-        #     label="Memory LLM API key:",
-        #     value="sk-placeholder"
-        # ).classes("w-full")
-        # ui.input(
-        #     label="Memory LLM URL:",
-        #     value="http://127.0.0.1:8080/v1"
-        # ).classes("w-full")
-        # ui.input(
-        #     label="Memory LLM:",
-        #     placeholder="LLM name"
-        # ).classes("w-full")
-        # ui.textarea(
-        #     label="Memory LLM sampling parameters:"
-        # ).classes("w-full")
+        # memory LLM settings
+        self.summary_llm_key = summary_llm.api_key
+        self.summary_llm_url = summary_llm.base_url
+        self.summary_llm_model = summary_llm.model
+        self.summary_llm_samp = json.dumps(
+            summary_llm.sampling_options,
+            indent=2
+        )
+        # build the GUI
         self.setup_ui()
 
     def setup_ui(self):
@@ -176,21 +174,19 @@ class ChatDemo:
                 # main API key
                 input_element = ui.input(
                     label="Main LLM API key:",
-                    value="sk-placeholder",
                 ).classes("w-full")
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'main_llm_key')
                 # main LLM URL
                 input_element = ui.input(
                     label="Main LLM URL:",
-                    value="http://127.0.0.1:8080/v1"
                 ).classes("w-full")
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'main_llm_url')
                 # main LLM name
                 input_element = ui.input(
                     label="Main LLM:",
-                    placeholder="LLM name"
+                    placeholder="LLM name",
                 ).classes("w-full")
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'main_llm_model')
@@ -201,21 +197,27 @@ class ChatDemo:
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'main_llm_samp')
                 # memory LLM controls
-                ui.input(
+                input_element = ui.input(
                     label="Memory LLM API key:",
-                    value="sk-placeholder"
                 ).classes("w-full")
-                ui.input(
+                input_element.on("blur", self.update_llm_settings)
+                input_element.bind_value(self, 'summary_llm_key')
+                input_element = ui.input(
                     label="Memory LLM URL:",
-                    value="http://127.0.0.1:8080/v1"
                 ).classes("w-full")
-                ui.input(
+                input_element.on("blur", self.update_llm_settings)
+                input_element.bind_value(self, 'summary_llm_url')
+                input_element = ui.input(
                     label="Memory LLM:",
-                    placeholder="LLM name"
+                    placeholder="LLM name",
                 ).classes("w-full")
-                ui.textarea(
+                input_element.on("blur", self.update_llm_settings)
+                input_element.bind_value(self, 'summary_llm_model')
+                input_element = ui.textarea(
                     label="Memory LLM sampling parameters:"
                 ).classes("w-full")
+                input_element.on("blur", self.update_llm_settings)
+                input_element.bind_value(self, 'summary_llm_samp')
 
     async def send(self, e:events.GenericEventArguments):
         # if user pressed shift+enter, add a newline
@@ -341,19 +343,37 @@ class ChatDemo:
     def update_llm_settings(self):
         """Update chat manager with current LLM settings."""
         print("Updating LLM settings!")
-        manager = app.storage.client['manager']
+        main_llm = app.storage.client['manager'].llm
+        summary_llm = app.storage.client['manager'].chat_memory.summary_llm
         # main LLM settings
-        manager.llm.api_key = self.main_llm_key
-        manager.llm.base_url = self.main_llm_url
-        manager.llm.model = self.main_llm_model
-        manager.llm.sampling_options = json.loads(s=self.main_llm_samp)
+        main_llm.api_key = self.main_llm_key
+        main_llm.base_url = self.main_llm_url
+        main_llm.model = self.main_llm_model
+        main_llm.sampling_options = json.loads(s=self.main_llm_samp)
+        # summary LLM settings
+        summary_llm.api_key = self.summary_llm_key
+        summary_llm.base_url = self.summary_llm_url
+        summary_llm.model = self.summary_llm_model
+        summary_llm.sampling_options = json.loads(s=self.summary_llm_samp)
 
     async def handle_upload(self, e: events.UploadEventArguments):
         """
         Uploads a saved session and populates the UI.
         """
         saved_session_text = await e.file.text()
-        print(saved_session_text)
+        chat_manager = StructuredHierarchicalManager.model_validate_json(json_data=saved_session_text)
+        app.storage.client['manager'] = chat_manager
+        # update settings
+        self.main_llm_key = chat_manager.llm.api_key
+        self.main_llm_url = chat_manager.llm.base_url
+        self.main_llm_model = chat_manager.llm.model
+        self.main_llm_samp = json.dumps(chat_manager.llm.sampling_options, indent=2)
+
+        summary_llm = chat_manager.chat_memory.summary_llm
+        self.summary_llm_key = summary_llm.api_key
+        self.summary_llm_url = summary_llm.base_url
+        self.summary_llm_model = summary_llm.model
+        self.summary_llm_samp = json.dumps(summary_llm.sampling_options, indent=2)
 
 demo = ChatDemo()
 ui.run(host='127.0.0.1', port=9091, title="Tater Talk")
