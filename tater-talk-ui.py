@@ -10,9 +10,9 @@ from root_cellar.manager import ChatThread, StructuredHierarchicalMemory, Struct
 class ChatDemo:
     def __init__(self):
         # set up LLM backend
-        llm = OpenAILLM(model="gemma-3-4B-it-UD-Q4_K_XL-cpu")
+        llm = OpenAILLM(model="gemma-3n-E4B-it-UD-Q5_K_XL-cpu")
         # separate LLM for summarizing
-        summary_llm = OpenAILLM(model="gemma-3-4B-it-UD-Q4_K_XL-cpu")
+        summary_llm = OpenAILLM(model="gemma-3n-E4B-it-UD-Q5_K_XL-cpu")
         # initialize session manager
         entity_manager = JSONEntityManager(llm=summary_llm)
         chat_thread = ChatThread(session_id=str(uuid.uuid4()), system_prompt="")
