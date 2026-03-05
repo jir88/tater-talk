@@ -49,6 +49,8 @@ class ChatDemo:
         self.message_container:elements.scroll_area.ScrollArea = None
         # list of chat messages in case we need to mess with them
         self.chat_message_list:List[elements.chat_message.ChatMessage] = []
+        # text area for manually editing chat messages
+        self.ta_manual_chat_edit:elements.textarea.Textarea = None
         # text input containing the user's message
         self.input_message:elements.textarea.Textarea = None
         # label for reporting generation speed
@@ -86,6 +88,7 @@ class ChatDemo:
             self.tab_settings = ui.tab("Settings")
         # define contents of each tab
         with ui.tab_panels(tabs, value=tab_main).classes('w-7/8'):
+            # ------ MAIN TAB -------------
             self.main_panel = ui.tab_panel(tab_main)
             with self.main_panel:
                 self.ta_sys_msg = ui.textarea(
@@ -96,7 +99,8 @@ class ChatDemo:
                 self.ta_sys_msg.on("blur", handler=self.update_system_prompt)
                 ui.checkbox(
                     text="Manual editing mode",
-                    value=False
+                    value=False,
+                    on_change=self.toggle_manual_message_editing,
                 )
                 self.message_container = ui.scroll_area().classes("w-full")
                 with ui.row(align_items="center").classes("w-full"):
@@ -423,5 +427,23 @@ class ChatDemo:
                     ui.markdown(msg['content'])
         # scroll last archived message into view
         self.archive_container.scroll_to(percent=1.0)
+    
+    def toggle_manual_message_editing(self, e:events.ValueChangeEventArguments):
+        """Switch between chat message view and editable text view."""
+        # if we're switching back to chat mode
+        if not e.value:
+            app.storage.client['manager'].chat_memory.chat_thread.import_readable(self.ta_manual_chat_edit.value)
+            self.refresh_message_list()
+        else:
+            # nuke chat messages
+            self.message_container.clear()
+            self.chat_message_list = []
+            # get readable text
+            chat_txt = app.storage.client['manager'].chat_memory.chat_thread.format_readable()
+            # add text area
+            with self.message_container:
+                self.ta_manual_chat_edit = ui.textarea(value=chat_txt).classes("w-full")
+            self.message_container.scroll_to(percent=1.0)
+
 demo = ChatDemo()
 ui.run(host='127.0.0.1', port=9091, title="Tater Talk")
