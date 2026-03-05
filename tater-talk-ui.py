@@ -56,7 +56,7 @@ class ChatDemo:
         # scroll area to put memories in
         self.memory_container = None
         # scroll area to put archived messages in
-        self.archive_container = None
+        self.archive_container:elements.scroll_area.ScrollArea = None
         # LLM settings
         self.main_llm_key = llm.api_key
         self.main_llm_url = llm.base_url
@@ -379,6 +379,8 @@ class ChatDemo:
         self.ta_sys_msg.value = app.storage.client['manager'].chat_memory.chat_thread.system_prompt
         # update the list of messages
         self.refresh_message_list()
+        # update the list of archived messages
+        self.refresh_archived_message_list()
 
     def refresh_message_list(self):
         """Delete current message list in the GUI and rebuild it from the chat manager."""
@@ -400,5 +402,26 @@ class ChatDemo:
                 # format content as markdown
                 with current_message:
                     ui.markdown(msg['content'])
+        # scroll messages into view
+        self.message_container.scroll_to(percent=1.0)
+
+    def refresh_archived_message_list(self):
+        """Delete current archived message list in the GUI and rebuild it from the chat manager."""
+        # clear the message elements
+        self.archive_container.clear()
+        # add the archived messages back
+        chat_manager = app.storage.client['manager']
+        with self.archive_container:
+            for msg in chat_manager.chat_memory.chat_thread.archived_messages:
+                is_sent = msg['role'] == "user"
+                current_message = ui.chat_message(
+                    name=msg['role'],
+                    sent=is_sent
+                )
+                # format content as markdown
+                with current_message:
+                    ui.markdown(msg['content'])
+        # scroll last archived message into view
+        self.archive_container.scroll_to(percent=1.0)
 demo = ChatDemo()
 ui.run(host='127.0.0.1', port=9091, title="Tater Talk")
