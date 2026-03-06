@@ -122,7 +122,8 @@ class ChatDemo:
                     )
                     saved_session_uploader.props('accept=.json')
                     # button for saving the current session
-                    ui.button("Save session")
+                    ui.button("Save session", on_click=self.handle_save)
+            # ------------- MEMORY TAB --------------
             with ui.tab_panel(self.tab_memory):
                 ui.textarea(
                     label="Summarization prompt:"
@@ -386,6 +387,16 @@ class ChatDemo:
         # update the list of archived messages
         self.refresh_archived_message_list()
 
+    def handle_save(self):
+        """Save the session to a JSON file."""
+        output_file_txt = app.storage.client['manager'].model_dump_json(indent=2)
+        # show save dialog
+        ui.download.content(
+            content=output_file_txt,
+            filename="session.json",
+            media_type="application/json"
+        )
+    
     def refresh_message_list(self):
         """Delete current message list in the GUI and rebuild it from the chat manager."""
         # clear the message elements
