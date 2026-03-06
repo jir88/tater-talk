@@ -57,6 +57,12 @@ class ChatDemo:
         self.label_gen_speed = None
         # scroll area to put memories in
         self.memory_container = None
+        # memory settings
+        self.ta_summary_prompt:elements.textarea.Textarea = None
+        self.num_max_context_prop:elements.number.Number = None
+        self.num_max_summary_prop:elements.number.Number = None
+        self.num_max_summary_levels:elements.number.Number = None
+        self.num_tokens_summarized:elements.number.Number = None
         # scroll area to put archived messages in
         self.archive_container:elements.scroll_area.ScrollArea = None
         # LLM settings
@@ -123,28 +129,35 @@ class ChatDemo:
                     saved_session_uploader.props('accept=.json')
                     # button for saving the current session
                     ui.button("Save session", on_click=self.handle_save)
+
             # ------------- MEMORY TAB --------------
+
             with ui.tab_panel(self.tab_memory):
-                ui.textarea(
+                self.ta_summary_prompt = ui.textarea(
                     label="Summarization prompt:"
                 ).classes("w-full")
+                self.ta_summary_prompt.on('blur', self.update_memory_settings)
                 with ui.row().classes("w-full"):
-                    ui.number(
+                    self.num_max_context_prop = ui.number(
                         label="Maximum context proportion threshold:",
                         value=0.8,
                         min=0.0, max=1.0, step=0.05,
+                        on_change=self.update_memory_settings,
                     ).classes("w-1/3")
-                    ui.number(label="Maximum summary proportion:",
+                    self.num_max_summary_prop = ui.number(label="Maximum summary proportion:",
                         value=0.5,
                         min=0.0, max=1.0, step=0.05,
+                        on_change=self.update_memory_settings,
                     ).classes("w-1/3")
-                    ui.number(label="Maximum number of summary levels:",
+                    self.num_max_summary_levels = ui.number(label="Maximum number of summary levels:",
                         value=3,
                         min=0, step=1,
+                        on_change=self.update_memory_settings,
                     ).classes("w-1/3")
-                    ui.number(label="Number of tokens to summarize:",
+                    self.num_tokens_summarized = ui.number(label="Number of tokens to summarize:",
                         value=1024,
                         min=128, step=128,
+                        on_change=self.update_memory_settings,
                     ).classes("w-1/3")
                 
                 ui.checkbox(
@@ -345,6 +358,14 @@ class ChatDemo:
         """Pull the current value of ta_sys_msg and push it into the system prompt."""
         app.storage.client['manager'].chat_memory.chat_thread.system_prompt = self.ta_sys_msg.value
     
+    def update_memory_settings(self):
+        """Update the chat manager with current memory settings."""
+        app.storage.client['manager'].chat_memory.summary_prompt = self.ta_summary_prompt.value
+        app.storage.client['manager'].chat_memory.prop_ctx = self.num_max_context_prop.value
+        app.storage.client['manager'].chat_memory.prop_summary = self.num_max_summary_prop.value
+        app.storage.client['manager'].chat_memory.n_levels = self.num_max_summary_levels.value
+        app.storage.client['manager'].chat_memory.n_tok_summarize = self.num_tokens_summarized.value
+    
     def update_llm_settings(self):
         """Update chat manager with current LLM settings."""
         print("Updating LLM settings!")
@@ -384,6 +405,14 @@ class ChatDemo:
         self.ta_sys_msg.value = app.storage.client['manager'].chat_memory.chat_thread.system_prompt
         # update the list of messages
         self.refresh_message_list()
+
+        # update memory settings
+        self.ta_summary_prompt.value = app.storage.client['manager'].chat_memory.summary_prompt
+        self.num_max_context_prop.value = app.storage.client['manager'].chat_memory.prop_ctx
+        self.num_max_summary_prop.value = app.storage.client['manager'].chat_memory.prop_summary
+        self.num_max_summary_levels.value = app.storage.client['manager'].chat_memory.n_levels
+        self.num_tokens_summarized.value = app.storage.client['manager'].chat_memory.n_tok_summarize
+
         # update the list of archived messages
         self.refresh_archived_message_list()
 
