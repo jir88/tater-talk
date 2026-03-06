@@ -94,7 +94,9 @@ class ChatDemo:
             self.tab_settings = ui.tab("Settings")
         # define contents of each tab
         with ui.tab_panels(tabs, value=tab_main).classes('w-7/8'):
+
             # ------ MAIN TAB -------------
+
             self.main_panel = ui.tab_panel(tab_main)
             with self.main_panel:
                 self.ta_sys_msg = ui.textarea(
@@ -412,6 +414,8 @@ class ChatDemo:
         self.num_max_summary_prop.value = app.storage.client['manager'].chat_memory.prop_summary
         self.num_max_summary_levels.value = app.storage.client['manager'].chat_memory.n_levels
         self.num_tokens_summarized.value = app.storage.client['manager'].chat_memory.n_tok_summarize
+        # refresh memory list
+        self.refresh_memory_list()
 
         # update the list of archived messages
         self.refresh_archived_message_list()
@@ -484,6 +488,27 @@ class ChatDemo:
             with self.message_container:
                 self.ta_manual_chat_edit = ui.textarea(value=chat_txt).classes("w-full")
             self.message_container.scroll_to(percent=1.0)
+    
+    def refresh_memory_list(self):
+        """Refresh the list of memories displayed in the GUI."""
+        chat_manager = app.storage.client['manager']
+
+        # clear old memories
+        self.memory_container.clear()
+        
+        if len(chat_manager.chat_memory.all_memory) == 0:
+            # no memories
+            return
+        # add memories
+        with self.memory_container:
+            for msg in chat_manager.chat_memory.all_memory:
+                current_message = ui.chat_message(
+                    name="Level " + str(msg['level']),
+                    sent=False
+                )
+                # format content as markdown
+                with current_message:
+                    ui.markdown(msg['content'])
 
 demo = ChatDemo()
 ui.run(host='127.0.0.1', port=9091, title="Tater Talk")
