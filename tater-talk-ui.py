@@ -57,6 +57,8 @@ class ChatDemo:
         self.label_gen_speed = None
         # scroll area to put memories in
         self.memory_container = None
+        # text area for manually editing memories
+        self.ta_manual_memory_edit:elements.textarea.Textarea = None
         # memory settings
         self.ta_summary_prompt:elements.textarea.Textarea = None
         self.num_max_context_prop:elements.number.Number = None
@@ -164,7 +166,8 @@ class ChatDemo:
                 
                 ui.checkbox(
                     text="Manual memory editing",
-                    value=False
+                    value=False,
+                    on_change=self.toggle_manual_memory_editing,
                 )
                 self.memory_container = ui.scroll_area().classes("w-full")
                 
@@ -495,7 +498,7 @@ class ChatDemo:
 
         # clear old memories
         self.memory_container.clear()
-        
+
         if len(chat_manager.chat_memory.all_memory) == 0:
             # no memories
             return
@@ -509,6 +512,24 @@ class ChatDemo:
                 # format content as markdown
                 with current_message:
                     ui.markdown(msg['content'])
+    
+    def toggle_manual_memory_editing(self, e:events.ValueChangeEventArguments):
+        """Switch between chat message view and editable text view."""
+        # when the text area changes, put the new version into the session
+        # st.session_state.chat_session.chat_memory.import_readable(st.session_state.ta_mem_editor)
+        # if we're switching back to chat mode
+        if not e.value:
+            app.storage.client['manager'].chat_memory.import_readable(self.ta_manual_memory_edit.value)
+            self.refresh_memory_list()
+        else:
+            # nuke memory messages
+            self.memory_container.clear()
+            # get readable text
+            mem_txt = app.storage.client['manager'].chat_memory.format_readable()
+            # add text area
+            with self.memory_container:
+                self.ta_manual_memory_edit = ui.textarea(value=mem_txt).classes("w-full")
+            self.memory_container.scroll_to(percent=1.0)
 
 demo = ChatDemo()
 ui.run(host='127.0.0.1', port=9091, title="Tater Talk")
