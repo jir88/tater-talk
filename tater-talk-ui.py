@@ -65,6 +65,8 @@ class ChatDemo:
         self.num_max_summary_prop:elements.number.Number = None
         self.num_max_summary_levels:elements.number.Number = None
         self.num_tokens_summarized:elements.number.Number = None
+        # entity settings
+        self.ta_entity_prompt:elements.textarea.Textarea = None
         # scroll area to put archived messages in
         self.archive_container:elements.scroll_area.ScrollArea = None
         # LLM settings
@@ -171,10 +173,11 @@ class ChatDemo:
                 )
                 self.memory_container = ui.scroll_area().classes("w-full")
                 
-                ta_entity_prompt = ui.textarea(
+                self.ta_entity_prompt = ui.textarea(
                     label="Entity list prompt:"
                 )
-                ta_entity_prompt.classes("w-full")
+                self.ta_entity_prompt.classes("w-full")
+                self.ta_entity_prompt.on('blur', self.update_entity_prompt)
                 # list of entities
                 with ui.row().classes("w-full"):
                     ui.select(
@@ -190,6 +193,9 @@ class ChatDemo:
             with ui.tab_panel(self.tab_archive):
                 ui.label('Archived messages:')
                 self.archive_container = ui.scroll_area().classes("w-full")
+            
+            # ---------------- SETTINGS TAB -------------------
+
             with ui.tab_panel(self.tab_settings):
                 # toggle to control light/dark theme
                 ui.switch('Dark mode').bind_value(self.dark_setting)
@@ -420,6 +426,9 @@ class ChatDemo:
         # refresh memory list
         self.refresh_memory_list()
 
+        # update entity settings
+        self.ta_entity_prompt.value = app.storage.client['manager'].chat_memory.entity_manager.prompt_entity_list
+
         # update the list of archived messages
         self.refresh_archived_message_list()
 
@@ -530,6 +539,9 @@ class ChatDemo:
             with self.memory_container:
                 self.ta_manual_memory_edit = ui.textarea(value=mem_txt).classes("w-full")
             self.memory_container.scroll_to(percent=1.0)
+    
+    def update_entity_prompt(self):
+        app.storage.client['manager'].chat_memory.entity_manager.prompt_entity_list = self.ta_entity_prompt.value
 
 demo = ChatDemo()
 ui.run(host='127.0.0.1', port=9091, title="Tater Talk")
