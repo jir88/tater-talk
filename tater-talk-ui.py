@@ -5,7 +5,7 @@ from nicegui import app, binding, ui, events, elements
 from typing import List
 
 from root_cellar.llm import OpenAILLM
-from root_cellar.entity import JSONEntityManager
+from root_cellar.entity import JSONEntityManager, GenEntity
 from root_cellar.manager import ChatThread, StructuredHierarchicalMemory, StructuredHierarchicalManager
 
 class ChatDemo:
@@ -67,6 +67,11 @@ class ChatDemo:
         self.num_tokens_summarized:elements.number.Number = None
         # entity settings
         self.ta_entity_prompt:elements.textarea.Textarea = None
+        self.list_entities:elements.list.List = None
+        self.input_entity_name:elements.input.Input = None
+        self.ta_entity_description:elements.textarea.Textarea = None
+        self.selected_entity:GenEntity = None
+
         # scroll area to put archived messages in
         self.archive_container:elements.scroll_area.ScrollArea = None
         # LLM settings
@@ -180,13 +185,13 @@ class ChatDemo:
                 self.ta_entity_prompt.on('blur', self.update_entity_prompt)
                 # list of entities
                 with ui.row().classes("w-full"):
-                    ui.select(
-                        options=[],
-                        multiple=False,
-                    )
+                    with ui.scroll_area().classes("w-1/4"):
+                        self.list_entities = ui.list()
                     with ui.column().classes("w-2/3"):
-                        ui.input(placeholder="Entity name").classes("w-full")
-                        ui.textarea(placeholder="Entity description").classes("w-full")
+                        self.input_entity_name = ui.input(placeholder="Entity name").classes("w-full")
+                        self.input_entity_name.on('blur', self.update_selected_entity_data)
+                        self.ta_entity_description = ui.textarea(placeholder="Entity description").classes("w-full")
+                        self.ta_entity_description.on('blur', self.update_selected_entity_data)
                 with ui.row():
                     ui.button("Calculate context size")
                     ui.button("Update memory")
@@ -428,6 +433,7 @@ class ChatDemo:
 
         # update entity settings
         self.ta_entity_prompt.value = app.storage.client['manager'].chat_memory.entity_manager.prompt_entity_list
+        self.refresh_entity_list()
 
         # update the list of archived messages
         self.refresh_archived_message_list()
@@ -542,6 +548,45 @@ class ChatDemo:
     
     def update_entity_prompt(self):
         app.storage.client['manager'].chat_memory.entity_manager.prompt_entity_list = self.ta_entity_prompt.value
+    
+    def refresh_entity_list(self):
+        """Rebuild the GUI list of entities."""
+        # clear the list
+        self.list_entities.clear()
+        # add the current entities
+        with self.list_entities:
+            entity_list = app.storage.client['manager'].chat_memory.entity_manager.entity_list.entities
+            for entity in entity_list:
+                ui.item(
+                    text=entity.name,
+                    # lambda wrapper required to call method with proper entity instead
+                    # of the last entity in the list
+                    on_click=lambda e, entity=entity: self.select_entity_item(entity=entity)
+                )
+        # select first entity by default
+        self.select_entity_item(entity_list[0])
+    
+    def select_entity_item(self, entity):
+        """Handle user selecting an entity."""
+        self.selected_entity = entity
+        # put entity info in inputs
+        self.input_entity_name.value = entity.name
+        self.ta_entity_description.value = entity.description
+    
+    def update_selected_entity_data(self):
+        """Update the data for the currently selected entity when the user changes it."""
+        if self.selected_entity is None:
+            return
+        original_name = self.selected_entity.name
+        self.selected_entity.name = self.input_entity_name.value
+        self.selected_entity.description = self.ta_entity_description.value
+        # if entity name is being changed, we need to refresh the list
+        if original_name != self.input_entity_name.value:
+            entity = self.selected_entity
+            self.refresh_entity_list()
+            # reselect current entity
+            self.select_entity_item(entity)
+
 
 demo = ChatDemo()
 ui.run(host='127.0.0.1', port=9091, title="Tater Talk")
