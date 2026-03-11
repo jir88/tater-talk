@@ -72,6 +72,9 @@ class ChatDemo:
         self.ta_entity_description:elements.textarea.Textarea = None
         self.selected_entity:GenEntity = None
 
+        # context size dialog
+        self.dialog_context_display:elements.dialog.Dialog = ui.dialog()
+
         # scroll area to put archived messages in
         self.archive_container:elements.scroll_area.ScrollArea = None
         # LLM settings
@@ -193,8 +196,11 @@ class ChatDemo:
                         self.ta_entity_description = ui.textarea(placeholder="Entity description").classes("w-full")
                         self.ta_entity_description.on('blur', self.update_selected_entity_data)
                 with ui.row():
-                    ui.button("Calculate context size")
-                    ui.button("Update memory")
+                    ui.button("Calculate context size", on_click=self.display_context_size)
+                    ui.button("Update memory", on_click=self.do_memory_update)
+            
+            # ---------------- ARCHIVE TAB -------------------
+
             with ui.tab_panel(self.tab_archive):
                 ui.label('Archived messages:')
                 self.archive_container = ui.scroll_area().classes("w-full")
@@ -563,8 +569,10 @@ class ChatDemo:
                     # of the last entity in the list
                     on_click=lambda e, entity=entity: self.select_entity_item(entity=entity)
                 )
-        # select first entity by default
-        self.select_entity_item(entity_list[0])
+        # if there are any entities
+        if len(entity_list) > 0:
+            # select first entity by default
+            self.select_entity_item(entity_list[0])
     
     def select_entity_item(self, entity):
         """Handle user selecting an entity."""
@@ -586,6 +594,46 @@ class ChatDemo:
             self.refresh_entity_list()
             # reselect current entity
             self.select_entity_item(entity)
+    
+    def display_context_size(self):
+        """Show a dialog with details about context length."""
+        # clear old content
+        self.dialog_context_display.clear()
+        # build new
+        chat_manager = app.storage.client['manager']
+        with self.dialog_context_display, ui.card():
+            total_size = 0
+            # calculate size of raw messages
+            level_size = 0
+            for msg in chat_manager.chat_memory.chat_thread.messages:
+                level_size += chat_manager.llm.count_tokens(msg['content'])
+            total_size += level_size
+            # calculate percent of alloted space
+            level_allowance = chat_manager.llm.sampling_options['num_ctx']*chat_manager.chat_memory.prop_ctx
+            level_pct = int(level_size/level_allowance*100)
+            ui.label(f"Message size: {level_size} ({level_pct}%)")
+            for level in range(1, chat_manager.chat_memory.n_levels + 1):
+                level_size = chat_manager.chat_memory.summary_level_size(level=level)
+                level_allowance = chat_manager.llm.sampling_options['num_ctx']*chat_manager.chat_memory.prop_ctx*chat_manager.chat_memory.prop_summary**level
+                level_pct = int(level_size/level_allowance*100)
+                ui.label(f"Level {level} size: {level_size} ({level_pct}%)")
+                total_size += level_size
+            ui.label(f"Total context size: {total_size}")
+        # open it
+        self.dialog_context_display.open()
+    
+    def do_memory_update(self):
+        # tell state manager to update memory, ensuring all levels are within limits
+        app.storage.client['manager'].chat_memory.update_all_memory()
+        # messages are changed
+        self.refresh_message_list()
+        # memories are changed
+        self.refresh_memory_list()
+        # entities are changed
+        if len(app.storage.client['manager'].chat_memory.entity_manager.entity_list.entities) > 0:
+            self.refresh_entity_list()
+        # messages are moved to archive
+        self.refresh_archived_message_list()
 
 
 demo = ChatDemo()
