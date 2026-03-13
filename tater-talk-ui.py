@@ -45,6 +45,8 @@ class ChatDemo:
         # UI attributes
         self.dark_setting = ui.dark_mode(value=True)
         self.main_panel = None
+        # toggle manual editing
+        self.check_manual_editing:elements.checkbox.Checkbox = None
         # scroll area to put the messages in
         self.message_container:elements.scroll_area.ScrollArea = None
         # list of chat messages in case we need to mess with them
@@ -55,6 +57,8 @@ class ChatDemo:
         self.input_message:elements.textarea.Textarea = None
         # label for reporting generation speed
         self.label_gen_speed = None
+        # toggle memory editing
+        self.check_memory_manual_editing:elements.checkbox.Checkbox = None
         # scroll area to put memories in
         self.memory_container = None
         # text area for manually editing memories
@@ -117,7 +121,7 @@ class ChatDemo:
                 )
                 self.ta_sys_msg.classes("w-full")
                 self.ta_sys_msg.on("blur", handler=self.update_system_prompt)
-                ui.checkbox(
+                self.check_manual_editing = ui.checkbox(
                     text="Manual editing mode",
                     value=False,
                     on_change=self.toggle_manual_message_editing,
@@ -174,7 +178,7 @@ class ChatDemo:
                         on_change=self.update_memory_settings,
                     ).classes("w-1/3")
                 
-                ui.checkbox(
+                self.check_memory_manual_editing = ui.checkbox(
                     text="Manual memory editing",
                     value=False,
                     on_change=self.toggle_manual_memory_editing,
@@ -408,6 +412,11 @@ class ChatDemo:
         """
         Uploads a saved session and populates the UI.
         """
+        # make sure manual message editing is toggled off
+        self.check_manual_editing.value = False
+        self.check_memory_manual_editing.value = False
+
+        # load the file
         saved_session_text = await e.file.text()
         chat_manager = StructuredHierarchicalManager.model_validate_json(json_data=saved_session_text)
         app.storage.client['manager'] = chat_manager
