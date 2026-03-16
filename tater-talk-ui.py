@@ -197,8 +197,13 @@ class ChatDemo:
                     with ui.column().classes("w-2/3"):
                         self.input_entity_name = ui.input(placeholder="Entity name").classes("w-full")
                         self.input_entity_name.on('blur', self.update_selected_entity_data)
+                        self.input_entity_name.disable()
                         self.ta_entity_description = ui.textarea(placeholder="Entity description").classes("w-full")
                         self.ta_entity_description.on('blur', self.update_selected_entity_data)
+                        self.ta_entity_description.disable()
+                with ui.row():
+                    ui.button(on_click=self.add_entity, icon="add")
+                    ui.button(on_click=self.remove_entity, icon="delete")
                 with ui.row():
                     ui.button("Calculate context size", on_click=self.display_context_size)
                     ui.button("Update memory", on_click=self.do_memory_update)
@@ -580,8 +585,15 @@ class ChatDemo:
                 )
         # if there are any entities
         if len(entity_list) > 0:
+            # enable the editor inputs
+            self.input_entity_name.enable()
+            self.ta_entity_description.enable()
             # select first entity by default
             self.select_entity_item(entity_list[0])
+        else:
+            # disable the editor inputs
+            self.input_entity_name.disable()
+            self.ta_entity_description.disable()
     
     def select_entity_item(self, entity):
         """Handle user selecting an entity."""
@@ -603,6 +615,42 @@ class ChatDemo:
             self.refresh_entity_list()
             # reselect current entity
             self.select_entity_item(entity)
+    
+    def add_entity(self):
+        """Add a new blank entity and enable editing it."""
+        # create blank entity and add it
+        new_entity = GenEntity(name="", description="")
+        app.storage.client['manager'].chat_memory.entity_manager.entity_list.entities.append(new_entity)
+        # refresh the list
+        self.refresh_entity_list()
+        # reselect new entity
+        self.select_entity_item(new_entity)
+
+        # enable the editor inputs
+        self.input_entity_name.enable()
+        self.ta_entity_description.enable()
+        self.input_entity_name.run_method("focus")
+
+    def remove_entity(self):
+        """Remove the currently selected entity."""
+        entity_list = app.storage.client['manager'].chat_memory.entity_manager.entity_list.entities
+        if len(entity_list) == 0:
+            return # nothing to delete
+        
+        idx = entity_list.index(self.selected_entity)
+        entity_list.remove(self.selected_entity)
+        self.refresh_entity_list()
+        # if no entities left, clear the entity inputs
+        if len(entity_list) == 0:
+            self.input_entity_name.value = ""
+            self.ta_entity_description.value = ""
+            self.input_entity_name.disable()
+            self.ta_entity_description.disable()
+            return
+        # select next entity in the list
+        if idx == len(entity_list):
+            idx = idx - 1
+        self.select_entity_item(entity_list[idx])
     
     def display_context_size(self):
         """Show a dialog with details about context length."""
