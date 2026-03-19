@@ -8,7 +8,7 @@ from root_cellar.llm import OpenAILLM
 from root_cellar.entity import JSONEntityManager, GenEntity
 from root_cellar.manager import ChatThread, StructuredHierarchicalMemory, StructuredHierarchicalManager
 
-class ChatDemo:
+class TaterTalkUI:
     # make UI settings into bindable properties to make updates more efficient
     main_llm_key = binding.BindableProperty()
     main_llm_url = binding.BindableProperty()
@@ -693,5 +693,5 @@ class ChatDemo:
         self.refresh_archived_message_list()
 
 
-demo = ChatDemo()
-ui.run(host='127.0.0.1', port=9091, title="Tater Talk")
+tater_ui = TaterTalkUI()
+ui.run(host='127.0.0.1', port=9091, title="Tater Talk", favicon='🥔')
