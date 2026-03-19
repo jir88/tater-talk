@@ -679,9 +679,9 @@ class TaterTalkUI:
         # open it
         self.dialog_context_display.open()
     
-    def do_memory_update(self):
+    async def do_memory_update(self):
         # tell state manager to update memory, ensuring all levels are within limits
-        app.storage.client['manager'].chat_memory.update_all_memory()
+        await app.storage.client['manager'].chat_memory.update_all_memory()
         # messages are changed
         self.refresh_message_list()
         # memories are changed
