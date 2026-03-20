@@ -42,6 +42,10 @@ class TaterTalkUI:
         # conversation data
         self.system_prompt = ""
         self.messages = []
+
+        # status flags
+        self.generation_status: str = "idle"
+
         # UI attributes
         self.dark_setting = ui.dark_mode(value=True)
         self.main_panel = None
@@ -55,6 +59,8 @@ class TaterTalkUI:
         self.ta_manual_chat_edit:elements.textarea.Textarea = None
         # text input containing the user's message
         self.input_message:elements.textarea.Textarea = None
+        # button for submitting the user's message or stopping
+        self.button_submit:elements.button.Button = None
         # label for reporting generation speed
         self.label_gen_speed = None
         # toggle memory editing
@@ -130,7 +136,7 @@ class TaterTalkUI:
                 with ui.row(align_items="center").classes("w-full"):
                     self.input_message = ui.textarea().classes("w-1/2")
                     self.input_message.on("keydown.enter", self.send)
-                    ui.button(icon="send", on_click=self.send)
+                    self.button_submit = ui.button(icon="send", on_click=self.send)
                     ui.button(icon="replay", on_click=self.regenerate_response)
                 # insert label to display generation speed
                 self.label_gen_speed = ui.label("Response generation rate: -- Tk/sec | Context length: 0")
@@ -273,6 +279,10 @@ class TaterTalkUI:
         if hasattr(e, 'args') and e.args['shiftKey']:
             self.input_message.value += "\n"
             return
+        # if status is 'responding', we need to stop
+        if self.generation_status == 'responding':
+            self.generation_status = 'idle'
+            return
         # otherwise, send the message
 
         # get the chat manager
@@ -308,6 +318,11 @@ class TaterTalkUI:
             # scroll new message into view
             self.message_container.scroll_to(percent=1.0)
 
+        # turn the submit button into a stop button
+        self.button_submit.set_icon('stop')
+        # set status to 'responding'
+        self.generation_status = 'responding'
+
         # Process stream
         o_gen = manager.get_response(stream=True)
         full_response = ""
@@ -323,10 +338,18 @@ class TaterTalkUI:
                     " Tk/sec | Context length: " + str(context_length)
             # scroll content into view, in case we've wrapped to a new line
             self.message_container.scroll_to(percent=1.0)
+            # check to see if the user has clicked stop
+            if self.generation_status == 'idle':
+                await o_gen.aclose()
+                break
         manager.append_message({
             'role': 'assistant',
             'content': full_response
         })
+        # set status to 'idle'
+        self.generation_status = 'idle'
+        # turn the stop button into a submit button
+        self.button_submit.set_icon('send')
         # enable input again
         self.input_message.enable()
         self.input_message.run_method("focus")
@@ -362,6 +385,11 @@ class TaterTalkUI:
             # scroll new message into view
             self.message_container.scroll_to(percent=1.0)
 
+        # turn the submit button into a stop button
+        self.button_submit.set_icon('stop')
+        # set status to 'responding'
+        self.generation_status = 'responding'
+
         # Process stream
         o_gen = manager.get_response(stream=True)
         full_response = ""
@@ -377,10 +405,18 @@ class TaterTalkUI:
                     " Tk/sec | Context length: " + str(context_length)
             # scroll content into view, in case we've wrapped to a new line
             self.message_container.scroll_to(percent=1.0)
+            # check to see if the user has clicked stop
+            if self.generation_status == 'idle':
+                await o_gen.aclose()
+                break
         manager.append_message({
             'role': 'assistant',
             'content': full_response
         })
+        # set status to 'idle'
+        self.generation_status = 'idle'
+        # turn the stop button into a submit button
+        self.button_submit.set_icon('send')
         # enable input again
         self.input_message.enable()
         self.input_message.run_method("focus")
