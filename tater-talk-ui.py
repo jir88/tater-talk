@@ -109,11 +109,12 @@ class TaterTalkUI:
     def setup_ui(self):
         chat_manager = app.storage.client['manager']
         # define navigation tabs
-        with ui.tabs().classes('w-full') as tabs:
-            tab_main = ui.tab('Main')
-            self.tab_memory = ui.tab('Memory')
-            self.tab_archive = ui.tab('Archive')
-            self.tab_settings = ui.tab("Settings")
+        with ui.header().classes('bg-dark'):
+            with ui.tabs().classes('w-full') as tabs:
+                tab_main = ui.tab('Main')
+                self.tab_memory = ui.tab('Memory')
+                self.tab_archive = ui.tab('Archive')
+                self.tab_settings = ui.tab("Settings")
         # define contents of each tab
         with ui.tab_panels(tabs, value=tab_main).classes('w-7/8'):
 
