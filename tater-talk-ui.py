@@ -70,7 +70,7 @@ class TaterTalkUI:
         # text area for manually editing memories
         self.ta_manual_memory_edit:elements.textarea.Textarea = None
         # memory settings
-        self.ta_summary_prompt:elements.textarea.Textarea = None
+        self.ta_summary_prompt:elements.input.Input = None
         self.num_max_context_prop:elements.number.Number = None
         self.num_max_summary_prop:elements.number.Number = None
         self.num_max_summary_levels:elements.number.Number = None
@@ -125,7 +125,7 @@ class TaterTalkUI:
                 self.ta_sys_msg = ui.textarea(
                     label="System message:",
                     value=chat_manager.chat_memory.chat_thread.system_prompt
-                )
+                ).props('input-class="h-50"')
                 self.ta_sys_msg.classes("w-full")
                 self.ta_sys_msg.on("blur", handler=self.update_system_prompt)
                 self.check_manual_editing = ui.checkbox(
@@ -133,7 +133,7 @@ class TaterTalkUI:
                     value=False,
                     on_change=self.toggle_manual_message_editing,
                 )
-                self.message_container = ui.scroll_area().classes("w-full")
+                self.message_container = ui.scroll_area().classes("w-full h-120")
                 with ui.row(align_items="center").classes("w-full"):
                     self.input_message = ui.textarea().classes("w-1/2")
                     self.input_message.on("keydown.enter", self.send)
@@ -219,7 +219,7 @@ class TaterTalkUI:
 
             with ui.tab_panel(self.tab_archive):
                 ui.label('Archived messages:')
-                self.archive_container = ui.scroll_area().classes("w-full")
+                self.archive_container = ui.scroll_area().classes("w-full h-120")
             
             # ---------------- SETTINGS TAB -------------------
 
@@ -398,7 +398,6 @@ class TaterTalkUI:
             response = chunk['response']
             if response is not None:
                 full_response += response
-                # print(response, end="", flush=True)  # Shows up in terminal
                 part.set_content(full_response)
             if chunk.get('predicted_per_second') is not None:
                 context_length = chunk['cache_n'] + chunk['prompt_n'] + chunk['predicted_n']
@@ -561,7 +560,7 @@ class TaterTalkUI:
             chat_txt = app.storage.client['manager'].chat_memory.chat_thread.format_readable()
             # add text area
             with self.message_container:
-                self.ta_manual_chat_edit = ui.textarea(value=chat_txt).classes("w-full")
+                self.ta_manual_chat_edit = ui.input(value=chat_txt).classes("w-full").props("type=textarea autogrow")
             self.message_container.scroll_to(percent=1.0)
     
     def refresh_memory_list(self):
