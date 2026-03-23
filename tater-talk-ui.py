@@ -1,8 +1,8 @@
 import json
 import uuid
 
-from nicegui import app, binding, ui, events, elements
-from typing import List
+from nicegui import app, binding, ui, events, elements, ElementFilter
+from typing import List, Literal
 
 from root_cellar.llm import OpenAILLM
 from root_cellar.entity import JSONEntityManager, GenEntity
@@ -44,7 +44,7 @@ class TaterTalkUI:
         self.messages = []
 
         # status flags
-        self.generation_status: str = "idle"
+        self.generation_status: Literal['idle', 'responding'] = "idle"
 
         # UI attributes
         self.dark_setting = ui.dark_mode(value=True)
@@ -125,20 +125,20 @@ class TaterTalkUI:
                 self.ta_sys_msg = ui.textarea(
                     label="System message:",
                     value=chat_manager.chat_memory.chat_thread.system_prompt
-                ).props('input-class="h-50"')
+                ).props('input-class="h-50"').mark('disable-on-generate')
                 self.ta_sys_msg.classes("w-full")
                 self.ta_sys_msg.on("blur", handler=self.update_system_prompt)
                 self.check_manual_editing = ui.checkbox(
                     text="Manual editing mode",
                     value=False,
                     on_change=self.toggle_manual_message_editing,
-                )
+                ).mark('disable-on-generate')
                 self.message_container = ui.scroll_area().classes("w-full h-120")
                 with ui.row(align_items="center").classes("w-full"):
-                    self.input_message = ui.textarea().classes("w-1/2")
+                    self.input_message = ui.textarea().classes("w-1/2").mark('disable-on-generate')
                     self.input_message.on("keydown.enter", self.send)
                     self.button_submit = ui.button(icon="send", on_click=self.send)
-                    ui.button(icon="replay", on_click=self.regenerate_response)
+                    ui.button(icon="replay", on_click=self.regenerate_response).mark('disable-on-generate')
                 # insert label to display generation speed
                 self.label_gen_speed = ui.label("Response generation rate: -- Tk/sec | Context length: 0")
                 with ui.row():
@@ -151,16 +151,17 @@ class TaterTalkUI:
                         auto_upload=True,
                         label="Upload saved session:"
                     )
+                    saved_session_uploader.mark('disable-on-generate')
                     saved_session_uploader.props('accept=.json')
                     # button for saving the current session
-                    ui.button("Save session", on_click=self.handle_save)
+                    ui.button("Save session", on_click=self.handle_save).mark('disable-on-generate')
 
             # ------------- MEMORY TAB --------------
 
             with ui.tab_panel(self.tab_memory):
                 self.ta_summary_prompt = ui.textarea(
                     label="Summarization prompt:"
-                ).classes("w-full")
+                ).classes("w-full").mark('disable-on-generate')
                 self.ta_summary_prompt.on('blur', self.update_memory_settings)
                 with ui.row().classes("w-full"):
                     self.num_max_context_prop = ui.number(
@@ -168,33 +169,33 @@ class TaterTalkUI:
                         value=0.8,
                         min=0.0, max=1.0, step=0.05,
                         on_change=self.update_memory_settings,
-                    ).classes("w-1/3")
+                    ).classes("w-1/3").mark('disable-on-generate')
                     self.num_max_summary_prop = ui.number(label="Maximum summary proportion:",
                         value=0.5,
                         min=0.0, max=1.0, step=0.05,
                         on_change=self.update_memory_settings,
-                    ).classes("w-1/3")
+                    ).classes("w-1/3").mark('disable-on-generate')
                     self.num_max_summary_levels = ui.number(label="Maximum number of summary levels:",
                         value=3,
                         min=0, step=1,
                         on_change=self.update_memory_settings,
-                    ).classes("w-1/3")
+                    ).classes("w-1/3").mark('disable-on-generate')
                     self.num_tokens_summarized = ui.number(label="Number of tokens to summarize:",
                         value=1024,
                         min=128, step=128,
                         on_change=self.update_memory_settings,
-                    ).classes("w-1/3")
+                    ).classes("w-1/3").mark('disable-on-generate')
                 
                 self.check_memory_manual_editing = ui.checkbox(
                     text="Manual memory editing",
                     value=False,
                     on_change=self.toggle_manual_memory_editing,
-                )
+                ).mark('disable-on-generate')
                 self.memory_container = ui.scroll_area().classes("w-full")
                 
                 self.ta_entity_prompt = ui.textarea(
                     label="Entity list prompt:"
-                )
+                ).mark('disable-on-generate')
                 self.ta_entity_prompt.classes("w-full")
                 self.ta_entity_prompt.on('blur', self.update_entity_prompt)
                 # list of entities
@@ -203,17 +204,19 @@ class TaterTalkUI:
                         self.list_entities = ui.list()
                     with ui.column().classes("w-2/3"):
                         self.input_entity_name = ui.input(placeholder="Entity name").classes("w-full")
+                        self.input_entity_name.mark('disable-on-generate')
                         self.input_entity_name.on('blur', self.update_selected_entity_data)
                         self.input_entity_name.disable()
                         self.ta_entity_description = ui.textarea(placeholder="Entity description").classes("w-full")
+                        self.ta_entity_description.mark('disable-on-generate')
                         self.ta_entity_description.on('blur', self.update_selected_entity_data)
                         self.ta_entity_description.disable()
                 with ui.row():
-                    ui.button(on_click=self.add_entity, icon="add")
-                    ui.button(on_click=self.remove_entity, icon="delete")
+                    ui.button(on_click=self.add_entity, icon="add").mark('disable-on-generate')
+                    ui.button(on_click=self.remove_entity, icon="delete").mark('disable-on-generate')
                 with ui.row():
-                    ui.button("Calculate context size", on_click=self.display_context_size)
-                    ui.button("Update memory", on_click=self.do_memory_update)
+                    ui.button("Calculate context size", on_click=self.display_context_size).mark('disable-on-generate')
+                    ui.button("Update memory", on_click=self.do_memory_update).mark('disable-on-generate')
             
             # ---------------- ARCHIVE TAB -------------------
 
@@ -230,48 +233,48 @@ class TaterTalkUI:
                 # main API key
                 input_element = ui.input(
                     label="Main LLM API key:",
-                ).classes("w-full")
+                ).classes("w-full").mark('disable-on-generate')
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'main_llm_key')
                 # main LLM URL
                 input_element = ui.input(
                     label="Main LLM URL:",
-                ).classes("w-full")
+                ).classes("w-full").mark('disable-on-generate')
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'main_llm_url')
                 # main LLM name
                 input_element = ui.input(
                     label="Main LLM:",
                     placeholder="LLM name",
-                ).classes("w-full")
+                ).classes("w-full").mark('disable-on-generate')
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'main_llm_model')
                 # main LLM sampling parameters
                 input_element = ui.textarea(
                     label="Main LLM sampling parameters:"
-                ).classes("w-full")
+                ).classes("w-full").mark('disable-on-generate')
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'main_llm_samp')
                 # memory LLM controls
                 input_element = ui.input(
                     label="Memory LLM API key:",
-                ).classes("w-full")
+                ).classes("w-full").mark('disable-on-generate')
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'summary_llm_key')
                 input_element = ui.input(
                     label="Memory LLM URL:",
-                ).classes("w-full")
+                ).classes("w-full").mark('disable-on-generate')
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'summary_llm_url')
                 input_element = ui.input(
                     label="Memory LLM:",
                     placeholder="LLM name",
-                ).classes("w-full")
+                ).classes("w-full").mark('disable-on-generate')
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'summary_llm_model')
                 input_element = ui.textarea(
                     label="Memory LLM sampling parameters:"
-                ).classes("w-full")
+                ).classes("w-full").mark('disable-on-generate')
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'summary_llm_samp')
 
@@ -282,7 +285,7 @@ class TaterTalkUI:
             return
         # if status is 'responding', we need to stop
         if self.generation_status == 'responding':
-            self.generation_status = 'idle'
+            self._set_generation_status("idle")
             return
         # otherwise, send the message
 
@@ -319,10 +322,8 @@ class TaterTalkUI:
             # scroll new message into view
             self.message_container.scroll_to(percent=1.0)
 
-        # turn the submit button into a stop button
-        self.button_submit.set_icon('stop')
         # set status to 'responding'
-        self.generation_status = 'responding'
+        self._set_generation_status('responding')
 
         # Process stream
         o_gen = manager.get_response(stream=True)
@@ -348,11 +349,8 @@ class TaterTalkUI:
             'content': full_response
         })
         # set status to 'idle'
-        self.generation_status = 'idle'
-        # turn the stop button into a submit button
-        self.button_submit.set_icon('send')
-        # enable input again
-        self.input_message.enable()
+        self._set_generation_status('idle')
+        # focus input box so user can type next message
         self.input_message.run_method("focus")
     
     async def regenerate_response(self, e:events.GenericEventArguments):
@@ -386,10 +384,8 @@ class TaterTalkUI:
             # scroll new message into view
             self.message_container.scroll_to(percent=1.0)
 
-        # turn the submit button into a stop button
-        self.button_submit.set_icon('stop')
         # set status to 'responding'
-        self.generation_status = 'responding'
+        self._set_generation_status('responding')
 
         # Process stream
         o_gen = manager.get_response(stream=True)
@@ -414,12 +410,26 @@ class TaterTalkUI:
             'content': full_response
         })
         # set status to 'idle'
-        self.generation_status = 'idle'
-        # turn the stop button into a submit button
-        self.button_submit.set_icon('send')
-        # enable input again
-        self.input_message.enable()
+        self._set_generation_status('idle')
+        # focus input so user can type next message
         self.input_message.run_method("focus")
+
+    def _set_generation_status(self, status: Literal["idle", "responding"]) -> None:
+        """Set generation status and enable/disable UI elements accordingly."""
+        self.generation_status = status
+        filter = ElementFilter(marker='disable-on-generate')
+        if status == "idle":
+            for el in filter:
+                el.enable()
+            # turn the stop button into a submit button
+            self.button_submit.set_icon('send')
+        elif status == "responding":
+            for el in filter:
+                el.disable()
+            # turn the submit button into a stop button
+            self.button_submit.set_icon('stop')
+        else:
+            print("Unexpected generation status: " + status)
 
     def update_system_prompt(self):
         """Pull the current value of ta_sys_msg and push it into the system prompt."""
