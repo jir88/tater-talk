@@ -21,24 +21,6 @@ class TaterTalkUI:
     summary_llm_samp = binding.BindableProperty()
 
     def __init__(self):
-        # set up LLM backend
-        llm = OpenAILLM(model="gemma-3n-E4B-it-UD-Q5_K_XL-cpu")
-        # separate LLM for summarizing
-        summary_llm = OpenAILLM(model="gemma-3n-E4B-it-UD-Q5_K_XL-cpu")
-        # initialize session manager
-        entity_manager = JSONEntityManager(llm=summary_llm)
-        chat_thread = ChatThread(session_id=str(uuid.uuid4()), system_prompt="")
-        chat_memory = StructuredHierarchicalMemory(
-            summary_llm=summary_llm,
-            chat_thread=chat_thread,
-            entity_manager=entity_manager
-        )
-        cs = StructuredHierarchicalManager(
-            llm=llm,
-            chat_memory=chat_memory
-        )
-        # put session data in volatile storage
-        app.storage.client['manager'] = cs
         # conversation data
         self.system_prompt = ""
         self.messages = []
@@ -47,7 +29,7 @@ class TaterTalkUI:
         self.generation_status: Literal['idle', 'responding'] = "idle"
 
         # UI attributes
-        self.dark_setting = ui.dark_mode(value=True)
+        self.dark_setting:elements.dark_mode.DarkMode = None
         self.main_panel = None
         # toggle manual editing
         self.check_manual_editing:elements.checkbox.Checkbox = None
@@ -83,10 +65,55 @@ class TaterTalkUI:
         self.selected_entity:GenEntity = None
 
         # context size dialog
-        self.dialog_context_display:elements.dialog.Dialog = ui.dialog()
+        self.dialog_context_display:elements.dialog.Dialog = None
 
         # scroll area to put archived messages in
         self.archive_container:elements.scroll_area.ScrollArea = None
+        # LLM settings
+        self.main_llm_key = ""
+        self.main_llm_url = ""
+        self.main_llm_model = ""
+        self.main_llm_samp = ""
+        # memory LLM settings
+        self.summary_llm_key = ""
+        self.summary_llm_url = ""
+        self.summary_llm_model = ""
+        self.summary_llm_samp = ""
+
+    # @ui.page('/')
+    async def setup_ui(self):
+        # wait until we're connected to the client
+        await ui.context.client.connected()
+
+        # set up the session
+        
+        # new session, make defaults
+        if 'manager' not in app.storage.tab:
+            # set up LLM backend
+            llm = OpenAILLM(model="gemma-3n-E4B-it-UD-Q5_K_XL-cpu")
+            # separate LLM for summarizing
+            summary_llm = OpenAILLM(model="gemma-3n-E4B-it-UD-Q5_K_XL-cpu")
+            # initialize session manager
+            entity_manager = JSONEntityManager(llm=summary_llm)
+            chat_thread = ChatThread(session_id=str(uuid.uuid4()), system_prompt="")
+            chat_memory = StructuredHierarchicalMemory(
+                summary_llm=summary_llm,
+                chat_thread=chat_thread,
+                entity_manager=entity_manager
+            )
+            chat_manager = StructuredHierarchicalManager(
+                llm=llm,
+                chat_memory=chat_memory
+            )
+            # put session data in volatile storage
+            app.storage.tab['manager'] = chat_manager
+        else:
+            chat_manager = app.storage.tab['manager']
+            llm = chat_manager.llm
+            summary_llm = chat_manager.chat_memory.summary_llm
+
+        # apply default settings
+        
         # LLM settings
         self.main_llm_key = llm.api_key
         self.main_llm_url = llm.base_url
@@ -103,11 +130,12 @@ class TaterTalkUI:
             summary_llm.sampling_options,
             indent=2
         )
-        # build the GUI
-        self.setup_ui()
+        
+        # set dark mode
+        self.dark_setting = ui.dark_mode(value=True)
+        # context size dialog
+        self.dialog_context_display = ui.dialog()
 
-    def setup_ui(self):
-        chat_manager = app.storage.client['manager']
         # define navigation tabs
         with ui.header().classes('bg-dark'):
             with ui.tabs().classes('w-full') as tabs:
@@ -134,6 +162,8 @@ class TaterTalkUI:
                     on_change=self.toggle_manual_message_editing,
                 ).mark('disable-on-generate')
                 self.message_container = ui.scroll_area().classes("w-full h-120")
+                # refresh message list
+                self.refresh_message_list()
                 with ui.row(align_items="center").classes("w-full"):
                     self.input_message = ui.textarea().classes("w-1/2").mark('disable-on-generate')
                     self.input_message.on("keydown.enter", self.send)
@@ -160,28 +190,29 @@ class TaterTalkUI:
 
             with ui.tab_panel(self.tab_memory):
                 self.ta_summary_prompt = ui.textarea(
-                    label="Summarization prompt:"
+                    label="Summarization prompt:",
+                    value=chat_manager.chat_memory.summary_prompt
                 ).classes("w-full").mark('disable-on-generate')
                 self.ta_summary_prompt.on('blur', self.update_memory_settings)
                 with ui.row().classes("w-full"):
                     self.num_max_context_prop = ui.number(
                         label="Maximum context proportion threshold:",
-                        value=0.8,
+                        value=chat_manager.chat_memory.prop_ctx,
                         min=0.0, max=1.0, step=0.05,
                         on_change=self.update_memory_settings,
                     ).classes("w-1/3").mark('disable-on-generate')
                     self.num_max_summary_prop = ui.number(label="Maximum summary proportion:",
-                        value=0.5,
+                        value=chat_manager.chat_memory.prop_summary,
                         min=0.0, max=1.0, step=0.05,
                         on_change=self.update_memory_settings,
                     ).classes("w-1/3").mark('disable-on-generate')
                     self.num_max_summary_levels = ui.number(label="Maximum number of summary levels:",
-                        value=3,
+                        value=chat_manager.chat_memory.n_levels,
                         min=0, step=1,
                         on_change=self.update_memory_settings,
                     ).classes("w-1/3").mark('disable-on-generate')
                     self.num_tokens_summarized = ui.number(label="Number of tokens to summarize:",
-                        value=1024,
+                        value=chat_manager.chat_memory.n_tok_summarize,
                         min=128, step=128,
                         on_change=self.update_memory_settings,
                     ).classes("w-1/3").mark('disable-on-generate')
@@ -192,9 +223,12 @@ class TaterTalkUI:
                     on_change=self.toggle_manual_memory_editing,
                 ).mark('disable-on-generate')
                 self.memory_container = ui.scroll_area().classes("w-full")
+                # populate memory list
+                self.refresh_memory_list()
                 
                 self.ta_entity_prompt = ui.textarea(
-                    label="Entity list prompt:"
+                    label="Entity list prompt:",
+                    value=chat_manager.chat_memory.entity_manager.prompt_entity_list
                 ).mark('disable-on-generate')
                 self.ta_entity_prompt.classes("w-full")
                 self.ta_entity_prompt.on('blur', self.update_entity_prompt)
@@ -217,12 +251,16 @@ class TaterTalkUI:
                 with ui.row():
                     ui.button("Calculate context size", on_click=self.display_context_size).mark('disable-on-generate')
                     ui.button("Update memory", on_click=self.do_memory_update).mark('disable-on-generate')
+                # populate entity list
+                self.refresh_entity_list()
             
             # ---------------- ARCHIVE TAB -------------------
 
             with ui.tab_panel(self.tab_archive):
                 ui.label('Archived messages:')
                 self.archive_container = ui.scroll_area().classes("w-full h-120")
+            # populate the list
+            self.refresh_archived_message_list()
             
             # ---------------- SETTINGS TAB -------------------
 
@@ -290,7 +328,7 @@ class TaterTalkUI:
         # otherwise, send the message
 
         # get the chat manager
-        manager = app.storage.client['manager']
+        manager = app.storage.tab['manager']
         # get the message the user wants to send
         msg = self.input_message.value.strip()
         # add it to the manager
@@ -363,7 +401,7 @@ class TaterTalkUI:
             return
 
         # get the chat manager
-        manager = app.storage.client['manager']
+        manager = app.storage.tab['manager']
         # remove the last message, which will be the LLM message we want to regenerate
         manager.chat_memory.chat_thread.messages.pop()
         # also remove it from the GUI
@@ -433,21 +471,21 @@ class TaterTalkUI:
 
     def update_system_prompt(self):
         """Pull the current value of ta_sys_msg and push it into the system prompt."""
-        app.storage.client['manager'].chat_memory.chat_thread.system_prompt = self.ta_sys_msg.value
+        app.storage.tab['manager'].chat_memory.chat_thread.system_prompt = self.ta_sys_msg.value
     
     def update_memory_settings(self):
         """Update the chat manager with current memory settings."""
-        app.storage.client['manager'].chat_memory.summary_prompt = self.ta_summary_prompt.value
-        app.storage.client['manager'].chat_memory.prop_ctx = self.num_max_context_prop.value
-        app.storage.client['manager'].chat_memory.prop_summary = self.num_max_summary_prop.value
-        app.storage.client['manager'].chat_memory.n_levels = self.num_max_summary_levels.value
-        app.storage.client['manager'].chat_memory.n_tok_summarize = self.num_tokens_summarized.value
+        app.storage.tab['manager'].chat_memory.summary_prompt = self.ta_summary_prompt.value
+        app.storage.tab['manager'].chat_memory.prop_ctx = self.num_max_context_prop.value
+        app.storage.tab['manager'].chat_memory.prop_summary = self.num_max_summary_prop.value
+        app.storage.tab['manager'].chat_memory.n_levels = self.num_max_summary_levels.value
+        app.storage.tab['manager'].chat_memory.n_tok_summarize = self.num_tokens_summarized.value
     
     def update_llm_settings(self):
         """Update chat manager with current LLM settings."""
         print("Updating LLM settings!")
-        main_llm = app.storage.client['manager'].llm
-        summary_llm = app.storage.client['manager'].chat_memory.summary_llm
+        main_llm = app.storage.tab['manager'].llm
+        summary_llm = app.storage.tab['manager'].chat_memory.summary_llm
         # main LLM settings
         main_llm.api_key = self.main_llm_key
         main_llm.base_url = self.main_llm_url
@@ -470,7 +508,7 @@ class TaterTalkUI:
         # load the file
         saved_session_text = await e.file.text()
         chat_manager = StructuredHierarchicalManager.model_validate_json(json_data=saved_session_text)
-        app.storage.client['manager'] = chat_manager
+        app.storage.tab['manager'] = chat_manager
         # update settings
         self.main_llm_key = chat_manager.llm.api_key
         self.main_llm_url = chat_manager.llm.base_url
@@ -484,21 +522,21 @@ class TaterTalkUI:
         self.summary_llm_samp = json.dumps(summary_llm.sampling_options, indent=2)
 
         # update the system message
-        self.ta_sys_msg.value = app.storage.client['manager'].chat_memory.chat_thread.system_prompt
+        self.ta_sys_msg.value = app.storage.tab['manager'].chat_memory.chat_thread.system_prompt
         # update the list of messages
         self.refresh_message_list()
 
         # update memory settings
-        self.ta_summary_prompt.value = app.storage.client['manager'].chat_memory.summary_prompt
-        self.num_max_context_prop.value = app.storage.client['manager'].chat_memory.prop_ctx
-        self.num_max_summary_prop.value = app.storage.client['manager'].chat_memory.prop_summary
-        self.num_max_summary_levels.value = app.storage.client['manager'].chat_memory.n_levels
-        self.num_tokens_summarized.value = app.storage.client['manager'].chat_memory.n_tok_summarize
+        self.ta_summary_prompt.value = app.storage.tab['manager'].chat_memory.summary_prompt
+        self.num_max_context_prop.value = app.storage.tab['manager'].chat_memory.prop_ctx
+        self.num_max_summary_prop.value = app.storage.tab['manager'].chat_memory.prop_summary
+        self.num_max_summary_levels.value = app.storage.tab['manager'].chat_memory.n_levels
+        self.num_tokens_summarized.value = app.storage.tab['manager'].chat_memory.n_tok_summarize
         # refresh memory list
         self.refresh_memory_list()
 
         # update entity settings
-        self.ta_entity_prompt.value = app.storage.client['manager'].chat_memory.entity_manager.prompt_entity_list
+        self.ta_entity_prompt.value = app.storage.tab['manager'].chat_memory.entity_manager.prompt_entity_list
         self.refresh_entity_list()
 
         # update the list of archived messages
@@ -506,7 +544,7 @@ class TaterTalkUI:
 
     def handle_save(self):
         """Save the session to a JSON file."""
-        output_file_txt = app.storage.client['manager'].model_dump_json(indent=2)
+        output_file_txt = app.storage.tab['manager'].model_dump_json(indent=2)
         # show save dialog
         ui.download.content(
             content=output_file_txt,
@@ -521,7 +559,7 @@ class TaterTalkUI:
         # clear the list where we keep track of message elements
         self.chat_message_list = []
         # add the conversation messages back
-        chat_manager = app.storage.client['manager']
+        chat_manager = app.storage.tab['manager']
         with self.message_container:
             for msg in chat_manager.chat_memory.chat_thread.messages:
                 is_sent = msg['role'] == "user"
@@ -542,7 +580,7 @@ class TaterTalkUI:
         # clear the message elements
         self.archive_container.clear()
         # add the archived messages back
-        chat_manager = app.storage.client['manager']
+        chat_manager = app.storage.tab['manager']
         with self.archive_container:
             for msg in chat_manager.chat_memory.chat_thread.archived_messages:
                 is_sent = msg['role'] == "user"
@@ -560,14 +598,14 @@ class TaterTalkUI:
         """Switch between chat message view and editable text view."""
         # if we're switching back to chat mode
         if not e.value:
-            app.storage.client['manager'].chat_memory.chat_thread.import_readable(self.ta_manual_chat_edit.value)
+            app.storage.tab['manager'].chat_memory.chat_thread.import_readable(self.ta_manual_chat_edit.value)
             self.refresh_message_list()
         else:
             # nuke chat messages
             self.message_container.clear()
             self.chat_message_list = []
             # get readable text
-            chat_txt = app.storage.client['manager'].chat_memory.chat_thread.format_readable()
+            chat_txt = app.storage.tab['manager'].chat_memory.chat_thread.format_readable()
             # add text area
             with self.message_container:
                 self.ta_manual_chat_edit = ui.input(value=chat_txt).classes("w-full").props("type=textarea autogrow")
@@ -575,7 +613,7 @@ class TaterTalkUI:
     
     def refresh_memory_list(self):
         """Refresh the list of memories displayed in the GUI."""
-        chat_manager = app.storage.client['manager']
+        chat_manager = app.storage.tab['manager']
 
         # clear old memories
         self.memory_container.clear()
@@ -600,20 +638,20 @@ class TaterTalkUI:
         # st.session_state.chat_session.chat_memory.import_readable(st.session_state.ta_mem_editor)
         # if we're switching back to chat mode
         if not e.value:
-            app.storage.client['manager'].chat_memory.import_readable(self.ta_manual_memory_edit.value)
+            app.storage.tab['manager'].chat_memory.import_readable(self.ta_manual_memory_edit.value)
             self.refresh_memory_list()
         else:
             # nuke memory messages
             self.memory_container.clear()
             # get readable text
-            mem_txt = app.storage.client['manager'].chat_memory.format_readable()
+            mem_txt = app.storage.tab['manager'].chat_memory.format_readable()
             # add text area
             with self.memory_container:
                 self.ta_manual_memory_edit = ui.textarea(value=mem_txt).classes("w-full")
             self.memory_container.scroll_to(percent=1.0)
     
     def update_entity_prompt(self):
-        app.storage.client['manager'].chat_memory.entity_manager.prompt_entity_list = self.ta_entity_prompt.value
+        app.storage.tab['manager'].chat_memory.entity_manager.prompt_entity_list = self.ta_entity_prompt.value
     
     def refresh_entity_list(self):
         """Rebuild the GUI list of entities."""
@@ -621,7 +659,7 @@ class TaterTalkUI:
         self.list_entities.clear()
         # add the current entities
         with self.list_entities:
-            entity_list = app.storage.client['manager'].chat_memory.entity_manager.entity_list.entities
+            entity_list = app.storage.tab['manager'].chat_memory.entity_manager.entity_list.entities
             for entity in entity_list:
                 ui.item(
                     text=entity.name,
@@ -666,7 +704,7 @@ class TaterTalkUI:
         """Add a new blank entity and enable editing it."""
         # create blank entity and add it
         new_entity = GenEntity(name="", description="")
-        app.storage.client['manager'].chat_memory.entity_manager.entity_list.entities.append(new_entity)
+        app.storage.tab['manager'].chat_memory.entity_manager.entity_list.entities.append(new_entity)
         # refresh the list
         self.refresh_entity_list()
         # reselect new entity
@@ -679,7 +717,7 @@ class TaterTalkUI:
 
     def remove_entity(self):
         """Remove the currently selected entity."""
-        entity_list = app.storage.client['manager'].chat_memory.entity_manager.entity_list.entities
+        entity_list = app.storage.tab['manager'].chat_memory.entity_manager.entity_list.entities
         if len(entity_list) == 0:
             return # nothing to delete
         
@@ -703,7 +741,7 @@ class TaterTalkUI:
         # clear old content
         self.dialog_context_display.clear()
         # build new
-        chat_manager = app.storage.client['manager']
+        chat_manager = app.storage.tab['manager']
         with self.dialog_context_display, ui.card():
             total_size = 0
             # calculate size of raw messages
@@ -727,17 +765,17 @@ class TaterTalkUI:
     
     async def do_memory_update(self):
         # tell state manager to update memory, ensuring all levels are within limits
-        await app.storage.client['manager'].chat_memory.update_all_memory()
+        await app.storage.tab['manager'].chat_memory.update_all_memory()
         # messages are changed
         self.refresh_message_list()
         # memories are changed
         self.refresh_memory_list()
         # entities are changed
-        if len(app.storage.client['manager'].chat_memory.entity_manager.entity_list.entities) > 0:
+        if len(app.storage.tab['manager'].chat_memory.entity_manager.entity_list.entities) > 0:
             self.refresh_entity_list()
         # messages are moved to archive
         self.refresh_archived_message_list()
 
 
 tater_ui = TaterTalkUI()
-ui.run(host='127.0.0.1', port=9091, title="Tater Talk", favicon='🥔')
+ui.run(root=tater_ui.setup_ui, host='127.0.0.1', port=9091, title="Tater Talk", favicon='🥔')
