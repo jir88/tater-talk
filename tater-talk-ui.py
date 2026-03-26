@@ -31,6 +31,8 @@ class TaterTalkUI:
         # UI attributes
         self.dark_setting:elements.dark_mode.DarkMode = None
         self.main_panel = None
+        # system prompt
+        self.ta_sys_msg: elements.textarea.Textarea = None
         # toggle manual editing
         self.check_manual_editing:elements.checkbox.Checkbox = None
         # scroll area to put the messages in
@@ -87,30 +89,13 @@ class TaterTalkUI:
 
         # set up the session
         
-        # new session, make defaults
+        # if new session, make defaults
         if 'manager' not in app.storage.tab:
-            # set up LLM backend
-            llm = OpenAILLM(model="gemma-3n-E4B-it-UD-Q5_K_XL-cpu")
-            # separate LLM for summarizing
-            summary_llm = OpenAILLM(model="gemma-3n-E4B-it-UD-Q5_K_XL-cpu")
-            # initialize session manager
-            entity_manager = JSONEntityManager(llm=summary_llm)
-            chat_thread = ChatThread(session_id=str(uuid.uuid4()), system_prompt="")
-            chat_memory = StructuredHierarchicalMemory(
-                summary_llm=summary_llm,
-                chat_thread=chat_thread,
-                entity_manager=entity_manager
-            )
-            chat_manager = StructuredHierarchicalManager(
-                llm=llm,
-                chat_memory=chat_memory
-            )
-            # put session data in volatile storage
-            app.storage.tab['manager'] = chat_manager
-        else:
-            chat_manager = app.storage.tab['manager']
-            llm = chat_manager.llm
-            summary_llm = chat_manager.chat_memory.summary_llm
+            await self.make_blank_session()
+        
+        chat_manager = app.storage.tab['manager']
+        llm = chat_manager.llm
+        summary_llm = chat_manager.chat_memory.summary_llm
 
         # apply default settings
         
@@ -183,8 +168,10 @@ class TaterTalkUI:
                     )
                     saved_session_uploader.mark('disable-on-generate')
                     saved_session_uploader.props('accept=.json')
-                    # button for saving the current session
-                    ui.button("Save session", on_click=self.handle_save).mark('disable-on-generate')
+                    with ui.column():
+                        # button for saving the current session
+                        ui.button(icon='save', on_click=self.handle_save).mark('disable-on-generate')
+                        ui.button(icon='clear', on_click=self.clear_session).mark('disable-on-generate')
 
             # ------------- MEMORY TAB --------------
 
@@ -315,6 +302,38 @@ class TaterTalkUI:
                 ).classes("w-full").mark('disable-on-generate')
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'summary_llm_samp')
+
+    async def clear_session(self):
+        """
+        Replace current session with a blank default one and refresh the GUI.
+        """
+        await self.make_blank_session()
+        await self.refresh_ui()
+    
+    async def make_blank_session(self):
+        """
+        Create a blank session and assign it to the current tab.
+        """
+        # set up LLM backend
+        llm = OpenAILLM(model="gemma-3n-E4B-it-UD-Q5_K_XL-cpu")
+        # separate LLM for summarizing
+        summary_llm = OpenAILLM(model="gemma-3n-E4B-it-UD-Q5_K_XL-cpu")
+        # initialize session manager
+        entity_manager = JSONEntityManager(llm=summary_llm)
+        chat_thread = ChatThread(session_id=str(uuid.uuid4()), system_prompt="")
+        chat_memory = StructuredHierarchicalMemory(
+            summary_llm=summary_llm,
+            chat_thread=chat_thread,
+            entity_manager=entity_manager
+        )
+        chat_manager = StructuredHierarchicalManager(
+            llm=llm,
+            chat_memory=chat_memory
+        )
+        # wait until we're connected to the client
+        await ui.context.client.connected()
+        # put session data in volatile storage
+        app.storage.tab['manager'] = chat_manager
 
     async def send(self, e:events.GenericEventArguments):
         # if user pressed shift+enter, add a newline
@@ -509,6 +528,13 @@ class TaterTalkUI:
         saved_session_text = await e.file.text()
         chat_manager = StructuredHierarchicalManager.model_validate_json(json_data=saved_session_text)
         app.storage.tab['manager'] = chat_manager
+        await self.refresh_ui()
+
+    async def refresh_ui(self):
+        """Refresh all UI elements to reflect the current session manager."""
+        # wait until we're connected to the client
+        await ui.context.client.connected()
+        chat_manager = app.storage.tab['manager']
         # update settings
         self.main_llm_key = chat_manager.llm.api_key
         self.main_llm_url = chat_manager.llm.base_url
@@ -522,21 +548,21 @@ class TaterTalkUI:
         self.summary_llm_samp = json.dumps(summary_llm.sampling_options, indent=2)
 
         # update the system message
-        self.ta_sys_msg.value = app.storage.tab['manager'].chat_memory.chat_thread.system_prompt
+        self.ta_sys_msg.value = chat_manager.chat_memory.chat_thread.system_prompt
         # update the list of messages
         self.refresh_message_list()
 
         # update memory settings
-        self.ta_summary_prompt.value = app.storage.tab['manager'].chat_memory.summary_prompt
-        self.num_max_context_prop.value = app.storage.tab['manager'].chat_memory.prop_ctx
-        self.num_max_summary_prop.value = app.storage.tab['manager'].chat_memory.prop_summary
-        self.num_max_summary_levels.value = app.storage.tab['manager'].chat_memory.n_levels
-        self.num_tokens_summarized.value = app.storage.tab['manager'].chat_memory.n_tok_summarize
+        self.ta_summary_prompt.value = chat_manager.chat_memory.summary_prompt
+        self.num_max_context_prop.value = chat_manager.chat_memory.prop_ctx
+        self.num_max_summary_prop.value = chat_manager.chat_memory.prop_summary
+        self.num_max_summary_levels.value = chat_manager.chat_memory.n_levels
+        self.num_tokens_summarized.value = chat_manager.chat_memory.n_tok_summarize
         # refresh memory list
         self.refresh_memory_list()
 
         # update entity settings
-        self.ta_entity_prompt.value = app.storage.tab['manager'].chat_memory.entity_manager.prompt_entity_list
+        self.ta_entity_prompt.value = chat_manager.chat_memory.entity_manager.prompt_entity_list
         self.refresh_entity_list()
 
         # update the list of archived messages
@@ -677,7 +703,9 @@ class TaterTalkUI:
         else:
             # disable the editor inputs
             self.input_entity_name.disable()
+            self.input_entity_name.value = ""
             self.ta_entity_description.disable()
+            self.ta_entity_description.value = ""
     
     def select_entity_item(self, entity):
         """Handle user selecting an entity."""
