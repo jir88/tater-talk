@@ -146,7 +146,7 @@ class TaterTalkUI:
                     value=False,
                     on_change=self.toggle_manual_message_editing,
                 ).mark('disable-on-generate')
-                self.message_container = ui.scroll_area().classes("w-full h-120")
+                self.message_container = ui.scroll_area().classes("w-full h-100")
                 # refresh message list
                 self.refresh_message_list()
                 with ui.row(align_items="center").classes("w-full"):
@@ -209,7 +209,7 @@ class TaterTalkUI:
                     value=False,
                     on_change=self.toggle_manual_memory_editing,
                 ).mark('disable-on-generate')
-                self.memory_container = ui.scroll_area().classes("w-full")
+                self.memory_container = ui.scroll_area().classes("w-full h-100")
                 # populate memory list
                 self.refresh_memory_list()
                 
@@ -673,7 +673,7 @@ class TaterTalkUI:
             mem_txt = app.storage.tab['manager'].chat_memory.format_readable()
             # add text area
             with self.memory_container:
-                self.ta_manual_memory_edit = ui.textarea(value=mem_txt).classes("w-full")
+                self.ta_manual_memory_edit = ui.input(value=mem_txt).classes("w-full").props("type=textarea autogrow")
             self.memory_container.scroll_to(percent=1.0)
     
     def update_entity_prompt(self):
