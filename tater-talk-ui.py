@@ -528,6 +528,9 @@ class TaterTalkUI:
         saved_session_text = await e.file.text()
         chat_manager = StructuredHierarchicalManager.model_validate_json(json_data=saved_session_text)
         app.storage.tab['manager'] = chat_manager
+        # clear the upload widget
+        e.sender.reset()
+        # refresh the GUI
         await self.refresh_ui()
 
     async def refresh_ui(self):
