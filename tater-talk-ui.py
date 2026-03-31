@@ -5,7 +5,7 @@ from nicegui import app, binding, ui, events, elements, ElementFilter
 from typing import List, Literal
 
 from root_cellar.llm import OpenAILLM
-from root_cellar.entity import JSONEntityManager, GenEntity
+from root_cellar.entity import JSONEntityManager, Entity
 from root_cellar.manager import ChatThread, StructuredHierarchicalMemory, StructuredHierarchicalManager
 
 class TaterTalkUI:
@@ -64,7 +64,7 @@ class TaterTalkUI:
         self.list_entities:elements.list.List = None
         self.input_entity_name:elements.input.Input = None
         self.ta_entity_description:elements.textarea.Textarea = None
-        self.selected_entity:GenEntity = None
+        self.selected_entity:Entity = None
 
         # context size dialog
         self.dialog_context_display:elements.dialog.Dialog = None
@@ -688,7 +688,7 @@ class TaterTalkUI:
         self.list_entities.clear()
         # add the current entities
         with self.list_entities:
-            entity_list = app.storage.tab['manager'].chat_memory.entity_manager.entity_list.entities
+            entity_list = app.storage.tab['manager'].chat_memory.entity_manager.entity_list
             for entity in entity_list:
                 ui.item(
                     text=entity.name,
@@ -734,8 +734,8 @@ class TaterTalkUI:
     def add_entity(self):
         """Add a new blank entity and enable editing it."""
         # create blank entity and add it
-        new_entity = GenEntity(name="", description="")
-        app.storage.tab['manager'].chat_memory.entity_manager.entity_list.entities.append(new_entity)
+        new_entity = Entity(name="", description="")
+        app.storage.tab['manager'].chat_memory.entity_manager.entity_list.append(new_entity)
         # refresh the list
         self.refresh_entity_list()
         # reselect new entity
@@ -748,7 +748,7 @@ class TaterTalkUI:
 
     def remove_entity(self):
         """Remove the currently selected entity."""
-        entity_list = app.storage.tab['manager'].chat_memory.entity_manager.entity_list.entities
+        entity_list = app.storage.tab['manager'].chat_memory.entity_manager.entity_list
         if len(entity_list) == 0:
             return # nothing to delete
         
@@ -802,7 +802,7 @@ class TaterTalkUI:
         # memories are changed
         self.refresh_memory_list()
         # entities are changed
-        if len(app.storage.tab['manager'].chat_memory.entity_manager.entity_list.entities) > 0:
+        if len(app.storage.tab['manager'].chat_memory.entity_manager.entity_list) > 0:
             self.refresh_entity_list()
         # messages are moved to archive
         self.refresh_archived_message_list()
