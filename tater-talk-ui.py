@@ -808,5 +808,12 @@ class TaterTalkUI:
         self.refresh_archived_message_list()
 
 
-tater_ui = TaterTalkUI()
-ui.run(root=tater_ui.setup_ui, host='127.0.0.1', port=9091, title="Tater Talk", favicon='🥔')
+
+
+# wrapper function so every user session gets its own UI object
+async def main():
+    tater_ui = TaterTalkUI()
+    await tater_ui.setup_ui()
+
+if __name__ in {"__main__", "__mp_main__"}:
+    ui.run(root=main, host='127.0.0.1', port=9091, title="Tater Talk", favicon='🥔')
