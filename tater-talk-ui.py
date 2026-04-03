@@ -64,6 +64,7 @@ class TaterTalkUI:
         self.list_entities:elements.list.List = None
         self.input_entity_name:elements.input.Input = None
         self.ta_entity_description:elements.textarea.Textarea = None
+        self.check_entity_always_on: elements.checkbox.Checkbox = None
         self.selected_entity:Entity = None
 
         # context size dialog
@@ -224,14 +225,23 @@ class TaterTalkUI:
                     with ui.scroll_area().classes("w-1/4"):
                         self.list_entities = ui.list()
                     with ui.column().classes("w-2/3"):
+                        # entity name
                         self.input_entity_name = ui.input(placeholder="Entity name").classes("w-full")
                         self.input_entity_name.mark('disable-on-generate')
                         self.input_entity_name.on('blur', self.update_selected_entity_data)
                         self.input_entity_name.disable()
+                        # entity description
                         self.ta_entity_description = ui.textarea(placeholder="Entity description").classes("w-full")
                         self.ta_entity_description.mark('disable-on-generate')
                         self.ta_entity_description.on('blur', self.update_selected_entity_data)
                         self.ta_entity_description.disable()
+                        # is entity always injected?
+                        self.check_entity_always_on = ui.checkbox(
+                            "Always include in context",
+                            value=False,
+                            on_change=self.update_selected_entity_data
+                        ).mark('disable-on-generate')
+                        self.check_entity_always_on.disable()
                 with ui.row():
                     ui.button(on_click=self.add_entity, icon="add").mark('disable-on-generate')
                     ui.button(on_click=self.remove_entity, icon="delete").mark('disable-on-generate')
@@ -701,6 +711,7 @@ class TaterTalkUI:
             # enable the editor inputs
             self.input_entity_name.enable()
             self.ta_entity_description.enable()
+            self.check_entity_always_on.enable()
             # select first entity by default
             self.select_entity_item(entity_list[0])
         else:
@@ -709,13 +720,16 @@ class TaterTalkUI:
             self.input_entity_name.value = ""
             self.ta_entity_description.disable()
             self.ta_entity_description.value = ""
+            self.check_entity_always_on.disable()
+            self.check_entity_always_on.value = False
     
-    def select_entity_item(self, entity):
+    def select_entity_item(self, entity: Entity):
         """Handle user selecting an entity."""
         self.selected_entity = entity
         # put entity info in inputs
         self.input_entity_name.value = entity.name
         self.ta_entity_description.value = entity.description
+        self.check_entity_always_on.value = entity.always_on
     
     def update_selected_entity_data(self):
         """Update the data for the currently selected entity when the user changes it."""
@@ -724,6 +738,7 @@ class TaterTalkUI:
         original_name = self.selected_entity.name
         self.selected_entity.name = self.input_entity_name.value
         self.selected_entity.description = self.ta_entity_description.value
+        self.selected_entity.always_on = self.check_entity_always_on.value
         # if entity name is being changed, we need to refresh the list
         if original_name != self.input_entity_name.value:
             entity = self.selected_entity
@@ -744,6 +759,7 @@ class TaterTalkUI:
         # enable the editor inputs
         self.input_entity_name.enable()
         self.ta_entity_description.enable()
+        self.check_entity_always_on.enable()
         self.input_entity_name.run_method("focus")
 
     def remove_entity(self):
@@ -761,6 +777,7 @@ class TaterTalkUI:
             self.ta_entity_description.value = ""
             self.input_entity_name.disable()
             self.ta_entity_description.disable()
+            self.check_entity_always_on.disable()
             return
         # select next entity in the list
         if idx == len(entity_list):
