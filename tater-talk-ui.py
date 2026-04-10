@@ -525,6 +525,8 @@ class TaterTalkUI:
         summary_llm.base_url = self.summary_llm_url
         summary_llm.model = self.summary_llm_model
         summary_llm.sampling_options = json.loads(s=self.summary_llm_samp)
+        # we copy the summary LLM to the entity manager
+        app.storage.tab['manager'].chat_memory.entity_manager.llm = summary_llm
 
     async def handle_upload(self, e: events.UploadEventArguments):
         """
