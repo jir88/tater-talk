@@ -60,6 +60,7 @@ class TaterTalkUI:
         self.num_max_summary_levels:elements.number.Number = None
         self.num_tokens_summarized:elements.number.Number = None
         # entity settings
+        self.num_max_summary_depth:elements.number.Number = None
         self.ta_entity_prompt:elements.textarea.Textarea = None
         self.list_entities:elements.list.List = None
         self.input_entity_name:elements.input.Input = None
@@ -202,6 +203,12 @@ class TaterTalkUI:
                     self.num_tokens_summarized = ui.number(label="Number of tokens to summarize:",
                         value=chat_manager.chat_memory.n_tok_summarize,
                         min=128, step=128,
+                        on_change=self.update_memory_settings,
+                    ).classes("w-1/3").mark('disable-on-generate')
+                    self.num_max_summary_depth = ui.number(
+                        label="Include entities mentioned in N recent summaries:",
+                        value=chat_manager.chat_memory.entity_manager.max_summary_depth,
+                        min=0, step=1,
                         on_change=self.update_memory_settings,
                     ).classes("w-1/3").mark('disable-on-generate')
                 
@@ -509,6 +516,7 @@ class TaterTalkUI:
         app.storage.tab['manager'].chat_memory.prop_summary = self.num_max_summary_prop.value
         app.storage.tab['manager'].chat_memory.n_levels = self.num_max_summary_levels.value
         app.storage.tab['manager'].chat_memory.n_tok_summarize = self.num_tokens_summarized.value
+        app.storage.tab['manager'].chat_memory.entity_manager.max_summary_depth = self.num_max_summary_depth.value
     
     def update_llm_settings(self):
         """Update chat manager with current LLM settings."""
