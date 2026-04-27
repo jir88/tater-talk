@@ -645,16 +645,17 @@ class TaterTalkUI:
     
     def toggle_manual_message_editing(self, e:events.ValueChangeEventArguments):
         """Switch between chat message view and editable text view."""
+        chat_memory = app.storage.tab['manager'].chat_memory
         # if we're switching back to chat mode
         if not e.value:
-            app.storage.tab['manager'].chat_memory.chat_thread.import_readable(self.ta_manual_chat_edit.value)
+            chat_memory.chat_thread.import_readable(self.ta_manual_chat_edit.value, entity_manager=chat_memory.entity_manager)
             self.refresh_message_list()
         else:
             # nuke chat messages
             self.message_container.clear()
             self.chat_message_list = []
             # get readable text
-            chat_txt = app.storage.tab['manager'].chat_memory.chat_thread.format_readable()
+            chat_txt = chat_memory.chat_thread.format_readable(entity_manager=chat_memory.entity_manager)
             # add text area
             with self.message_container:
                 self.ta_manual_chat_edit = ui.input(value=chat_txt).classes("w-full").props("type=textarea autogrow")
