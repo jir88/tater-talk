@@ -64,6 +64,7 @@ class TaterTalkUI:
         self.ta_entity_prompt:elements.textarea.Textarea = None
         self.list_entities:elements.list.List = None
         self.input_entity_name:elements.input.Input = None
+        self.input_entity_aliases:elements.input.Input = None
         self.ta_entity_description:elements.textarea.Textarea = None
         self.check_entity_always_on: elements.checkbox.Checkbox = None
         self.selected_entity:Entity = None
@@ -232,11 +233,17 @@ class TaterTalkUI:
                     with ui.scroll_area().classes("w-1/4"):
                         self.list_entities = ui.list()
                     with ui.column().classes("w-2/3"):
-                        # entity name
-                        self.input_entity_name = ui.input(placeholder="Entity name").classes("w-full")
-                        self.input_entity_name.mark('disable-on-generate')
-                        self.input_entity_name.on('blur', self.update_selected_entity_data)
-                        self.input_entity_name.disable()
+                        with ui.row().classes("w-full"):
+                            # entity name
+                            self.input_entity_name = ui.input(placeholder="Entity name").classes("w-1/4")
+                            self.input_entity_name.mark('disable-on-generate')
+                            self.input_entity_name.on('blur', self.update_selected_entity_data)
+                            self.input_entity_name.disable()
+                            # alternative keywords/names for entity
+                            self.input_entity_aliases = ui.input(placeholder="Alternative aliases").classes("w-2/3")
+                            self.input_entity_aliases.mark('disable-on-generate')
+                            self.input_entity_aliases.on('blur', self.update_selected_entity_data)
+                            self.input_entity_aliases.disable()
                         # entity description
                         self.ta_entity_description = ui.textarea(placeholder="Entity description").classes("w-full")
                         self.ta_entity_description.mark('disable-on-generate')
@@ -721,6 +728,7 @@ class TaterTalkUI:
         if len(entity_list) > 0:
             # enable the editor inputs
             self.input_entity_name.enable()
+            self.input_entity_aliases.enable()
             self.ta_entity_description.enable()
             self.check_entity_always_on.enable()
             # select first entity by default
@@ -729,6 +737,8 @@ class TaterTalkUI:
             # disable the editor inputs
             self.input_entity_name.disable()
             self.input_entity_name.value = ""
+            self.input_entity_aliases.disable()
+            self.input_entity_aliases.value = ""
             self.ta_entity_description.disable()
             self.ta_entity_description.value = ""
             self.check_entity_always_on.disable()
@@ -739,6 +749,7 @@ class TaterTalkUI:
         self.selected_entity = entity
         # put entity info in inputs
         self.input_entity_name.value = entity.name
+        self.input_entity_aliases.value = json.dumps(entity.aliases)
         self.ta_entity_description.value = entity.description
         self.check_entity_always_on.value = entity.always_on
     
@@ -748,6 +759,7 @@ class TaterTalkUI:
             return
         original_name = self.selected_entity.name
         self.selected_entity.name = self.input_entity_name.value
+        self.selected_entity.aliases = json.loads(self.input_entity_aliases.value)
         self.selected_entity.description = self.ta_entity_description.value
         self.selected_entity.always_on = self.check_entity_always_on.value
         # if entity name is being changed, we need to refresh the list
@@ -769,6 +781,7 @@ class TaterTalkUI:
 
         # enable the editor inputs
         self.input_entity_name.enable()
+        self.input_entity_aliases.enable()
         self.ta_entity_description.enable()
         self.check_entity_always_on.enable()
         self.input_entity_name.run_method("focus")
@@ -785,8 +798,10 @@ class TaterTalkUI:
         # if no entities left, clear the entity inputs
         if len(entity_list) == 0:
             self.input_entity_name.value = ""
+            self.input_entity_aliases.value = ""
             self.ta_entity_description.value = ""
             self.input_entity_name.disable()
+            self.input_entity_aliases.disable()
             self.ta_entity_description.disable()
             self.check_entity_always_on.disable()
             return
