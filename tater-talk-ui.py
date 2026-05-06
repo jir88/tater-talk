@@ -55,6 +55,7 @@ class TaterTalkUI:
         self.ta_manual_memory_edit:elements.textarea.Textarea = None
         # memory settings
         self.ta_summary_prompt:elements.input.Input = None
+        self.num_context_window:elements.number.Number = None
         self.num_max_context_prop:elements.number.Number = None
         self.num_max_summary_prop:elements.number.Number = None
         self.num_max_summary_levels:elements.number.Number = None
@@ -185,6 +186,12 @@ class TaterTalkUI:
                 ).classes("w-full").mark('disable-on-generate')
                 self.ta_summary_prompt.on('blur', self.update_memory_settings)
                 with ui.row().classes("w-full"):
+                    self.num_context_window = ui.number(
+                        label="Context window size:",
+                        value=chat_manager.llm.context_window,
+                        min=2048, step=128,
+                        on_change=self.update_memory_settings,
+                    ).classes("w-1/3").mark('disable-on-generate')
                     self.num_max_context_prop = ui.number(
                         label="Maximum context proportion threshold:",
                         value=chat_manager.chat_memory.prop_ctx,
@@ -519,6 +526,7 @@ class TaterTalkUI:
     def update_memory_settings(self):
         """Update the chat manager with current memory settings."""
         app.storage.tab['manager'].chat_memory.summary_prompt = self.ta_summary_prompt.value
+        app.storage.tab['manager'].llm.context_window = self.num_context_window.value
         app.storage.tab['manager'].chat_memory.prop_ctx = self.num_max_context_prop.value
         app.storage.tab['manager'].chat_memory.prop_summary = self.num_max_summary_prop.value
         app.storage.tab['manager'].chat_memory.n_levels = self.num_max_summary_levels.value
@@ -584,6 +592,7 @@ class TaterTalkUI:
 
         # update memory settings
         self.ta_summary_prompt.value = chat_manager.chat_memory.summary_prompt
+        self.num_context_window.value = chat_manager.llm.context_window
         self.num_max_context_prop.value = chat_manager.chat_memory.prop_ctx
         self.num_max_summary_prop.value = chat_manager.chat_memory.prop_summary
         self.num_max_summary_levels.value = chat_manager.chat_memory.n_levels
