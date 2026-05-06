@@ -527,6 +527,8 @@ class TaterTalkUI:
         """Update the chat manager with current memory settings."""
         app.storage.tab['manager'].chat_memory.summary_prompt = self.ta_summary_prompt.value
         app.storage.tab['manager'].llm.context_window = self.num_context_window.value
+        # make summary and regular LLM use same context window
+        app.storage.tab['manager'].chat_memory.summary_llm.context_window = self.num_context_window.value
         app.storage.tab['manager'].chat_memory.prop_ctx = self.num_max_context_prop.value
         app.storage.tab['manager'].chat_memory.prop_summary = self.num_max_summary_prop.value
         app.storage.tab['manager'].chat_memory.n_levels = self.num_max_summary_levels.value
