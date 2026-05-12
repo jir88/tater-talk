@@ -821,30 +821,24 @@ class TaterTalkUI:
             idx = idx - 1
         self.select_entity_item(entity_list[idx])
     
-    def display_context_size(self):
+    async def display_context_size(self):
         """Show a dialog with details about context length."""
         # clear old content
         self.dialog_context_display.clear()
         # build new
         chat_manager = app.storage.tab['manager']
+
+        # calculate all sizes
+        level_sizes = await chat_manager.all_context_sizes()
+
+        # assemble the dialog
         with self.dialog_context_display, ui.card():
-            total_size = 0
-            # calculate size of raw messages
-            level_size = 0
-            for msg in chat_manager.chat_memory.chat_thread.messages:
-                level_size += chat_manager.llm.count_tokens(msg['content'])
-            total_size += level_size
-            # calculate percent of alloted space
-            level_allowance = chat_manager.llm.sampling_options['num_ctx']*chat_manager.chat_memory.prop_ctx
-            level_pct = int(level_size/level_allowance*100)
-            ui.label(f"Message size: {level_size} ({level_pct}%)")
-            for level in range(1, chat_manager.chat_memory.n_levels + 1):
-                level_size = chat_manager.chat_memory.summary_level_size(level=level)
-                level_allowance = chat_manager.llm.sampling_options['num_ctx']*chat_manager.chat_memory.prop_ctx*chat_manager.chat_memory.prop_summary**level
-                level_pct = int(level_size/level_allowance*100)
-                ui.label(f"Level {level} size: {level_size} ({level_pct}%)")
-                total_size += level_size
-            ui.label(f"Total context size: {total_size}")
+            for part in level_sizes:
+                level_text = part['label'] + ": " + str(part['tokens'])
+                if part['percent'] >= 0:
+                    level_text += " (" + str(part['percent']) + "%)"
+                ui.label(level_text)
+        
         # open it
         self.dialog_context_display.open()
     
