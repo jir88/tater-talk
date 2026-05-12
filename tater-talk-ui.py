@@ -856,6 +856,8 @@ class TaterTalkUI:
             self.refresh_entity_list()
         # messages are moved to archive
         self.refresh_archived_message_list()
+        # indicate that process is finished
+        ui.notify("Finished updating memory!")
 
 
 
