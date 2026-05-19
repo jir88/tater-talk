@@ -19,6 +19,17 @@ class TaterTalkUI:
     summary_llm_url = binding.BindableProperty()
     summary_llm_model = binding.BindableProperty()
     summary_llm_samp = binding.BindableProperty()
+    
+    # memory settings
+    summary_prompt = binding.BindableProperty()
+    context_window = binding.BindableProperty()
+    max_context_prop = binding.BindableProperty()
+    max_summary_prop = binding.BindableProperty()
+    max_summary_levels = binding.BindableProperty()
+    tokens_summarized = binding.BindableProperty()
+    # entity settings
+    max_summary_depth = binding.BindableProperty()
+    entity_prompt = binding.BindableProperty()
 
     def __init__(self):
         # conversation data
@@ -27,6 +38,7 @@ class TaterTalkUI:
 
         # status flags
         self.generation_status: Literal['idle', 'responding'] = "idle"
+        self.loading_data: bool = False
 
         # UI attributes
         self.dark_setting:elements.dark_mode.DarkMode = None
@@ -53,16 +65,7 @@ class TaterTalkUI:
         self.memory_container = None
         # text area for manually editing memories
         self.ta_manual_memory_edit:elements.textarea.Textarea = None
-        # memory settings
-        self.ta_summary_prompt:elements.input.Input = None
-        self.num_context_window:elements.number.Number = None
-        self.num_max_context_prop:elements.number.Number = None
-        self.num_max_summary_prop:elements.number.Number = None
-        self.num_max_summary_levels:elements.number.Number = None
-        self.num_tokens_summarized:elements.number.Number = None
         # entity settings
-        self.num_max_summary_depth:elements.number.Number = None
-        self.ta_entity_prompt:elements.textarea.Textarea = None
         self.list_entities:elements.list.List = None
         self.input_entity_name:elements.input.Input = None
         self.input_entity_aliases:elements.input.Input = None
@@ -75,6 +78,17 @@ class TaterTalkUI:
 
         # scroll area to put archived messages in
         self.archive_container:elements.scroll_area.ScrollArea = None
+
+        self.summary_prompt = ""
+        self.context_window = 0
+        self.max_context_prop = 0
+        self.max_summary_prop = 0
+        self.max_summary_levels = 0
+        self.tokens_summarized = 0
+        # entity settings
+        self.max_summary_depth = 0
+        self.entity_prompt = ""
+        
         # LLM settings
         self.main_llm_key = ""
         self.main_llm_url = ""
@@ -102,6 +116,17 @@ class TaterTalkUI:
         summary_llm = chat_manager.chat_memory.summary_llm
 
         # apply default settings
+
+        # memory settings
+        self.summary_prompt = chat_manager.chat_memory.summary_prompt
+        self.context_window = llm.context_window
+        self.max_context_prop = chat_manager.chat_memory.prop_ctx
+        self.max_summary_prop = chat_manager.chat_memory.prop_summary
+        self.max_summary_levels = chat_manager.chat_memory.n_levels
+        self.tokens_summarized = chat_manager.chat_memory.n_tok_summarize
+        # entity settings
+        self.max_summary_depth = chat_manager.chat_memory.entity_manager.max_summary_depth
+        self.entity_prompt = chat_manager.chat_memory.entity_manager.prompt_entity_list
         
         # LLM settings
         self.main_llm_key = llm.api_key
@@ -180,45 +205,52 @@ class TaterTalkUI:
             # ------------- MEMORY TAB --------------
 
             with ui.tab_panel(self.tab_memory):
-                self.ta_summary_prompt = ui.textarea(
+                ta_summary_prompt = ui.textarea(
                     label="Summarization prompt:",
                     value=chat_manager.chat_memory.summary_prompt
                 ).classes("w-full").mark('disable-on-generate')
-                self.ta_summary_prompt.on('blur', self.update_memory_settings)
+                ta_summary_prompt.on('blur', self.update_memory_settings)
+                ta_summary_prompt.bind_value(self, 'summary_prompt')
                 with ui.row().classes("w-full"):
-                    self.num_context_window = ui.number(
+                    num_context_window = ui.number(
                         label="Context window size:",
                         value=chat_manager.llm.context_window,
                         min=2048, step=128,
                         on_change=self.update_memory_settings,
                     ).classes("w-1/3").mark('disable-on-generate')
-                    self.num_max_context_prop = ui.number(
+                    num_context_window.bind_value(self, 'context_window')
+                    num_max_context_prop = ui.number(
                         label="Maximum context proportion threshold:",
                         value=chat_manager.chat_memory.prop_ctx,
                         min=0.0, max=1.0, step=0.05,
                         on_change=self.update_memory_settings,
                     ).classes("w-1/3").mark('disable-on-generate')
-                    self.num_max_summary_prop = ui.number(label="Maximum summary proportion:",
+                    num_max_context_prop.bind_value(self, 'max_context_prop')
+                    num_max_summary_prop = ui.number(label="Maximum summary proportion:",
                         value=chat_manager.chat_memory.prop_summary,
                         min=0.0, max=1.0, step=0.05,
                         on_change=self.update_memory_settings,
                     ).classes("w-1/3").mark('disable-on-generate')
-                    self.num_max_summary_levels = ui.number(label="Maximum number of summary levels:",
+                    num_max_summary_prop.bind_value(self, 'max_summary_prop')
+                    num_max_summary_levels = ui.number(label="Maximum number of summary levels:",
                         value=chat_manager.chat_memory.n_levels,
                         min=0, step=1,
                         on_change=self.update_memory_settings,
                     ).classes("w-1/3").mark('disable-on-generate')
-                    self.num_tokens_summarized = ui.number(label="Number of tokens to summarize:",
+                    num_max_summary_levels.bind_value(self, 'max_summary_levels')
+                    num_tokens_summarized = ui.number(label="Number of tokens to summarize:",
                         value=chat_manager.chat_memory.n_tok_summarize,
                         min=128, step=128,
                         on_change=self.update_memory_settings,
                     ).classes("w-1/3").mark('disable-on-generate')
-                    self.num_max_summary_depth = ui.number(
+                    num_tokens_summarized.bind_value(self, 'tokens_summarized')
+                    num_max_summary_depth = ui.number(
                         label="Include entities mentioned in N recent summaries:",
                         value=chat_manager.chat_memory.entity_manager.max_summary_depth,
                         min=0, step=1,
                         on_change=self.update_memory_settings,
                     ).classes("w-1/3").mark('disable-on-generate')
+                    num_max_summary_depth.bind_value(self, 'max_summary_depth')
                 
                 self.check_memory_manual_editing = ui.checkbox(
                     text="Manual memory editing",
@@ -229,12 +261,13 @@ class TaterTalkUI:
                 # populate memory list
                 self.refresh_memory_list()
                 
-                self.ta_entity_prompt = ui.textarea(
+                ta_entity_prompt = ui.textarea(
                     label="Entity list prompt:",
                     value=chat_manager.chat_memory.entity_manager.prompt_entity_list
                 ).mark('disable-on-generate')
-                self.ta_entity_prompt.classes("w-full")
-                self.ta_entity_prompt.on('blur', self.update_entity_prompt)
+                ta_entity_prompt.classes("w-full")
+                ta_entity_prompt.on('blur', self.update_entity_prompt)
+                ta_entity_prompt.bind_value(self, 'entity_prompt')
                 # list of entities
                 with ui.row().classes("w-full"):
                     with ui.scroll_area().classes("w-1/4"):
@@ -420,7 +453,6 @@ class TaterTalkUI:
             response = chunk['response']
             if response is not None:
                 full_response += response
-                # print(response, end="", flush=True)  # Shows up in terminal
                 part.set_content(full_response)
             if chunk.get('predicted_per_second') is not None:
                 context_length = chunk['cache_n'] + chunk['prompt_n'] + chunk['predicted_n']
@@ -525,19 +557,22 @@ class TaterTalkUI:
     
     def update_memory_settings(self):
         """Update the chat manager with current memory settings."""
-        app.storage.tab['manager'].chat_memory.summary_prompt = self.ta_summary_prompt.value
-        app.storage.tab['manager'].llm.context_window = self.num_context_window.value
+        # if we're in the middle of loading data, ignore all the change events
+        if self.loading_data:
+            return
+        
+        app.storage.tab['manager'].chat_memory.summary_prompt = self.summary_prompt
+        app.storage.tab['manager'].llm.context_window = int(self.context_window)
         # make summary and regular LLM use same context window
-        app.storage.tab['manager'].chat_memory.summary_llm.context_window = self.num_context_window.value
-        app.storage.tab['manager'].chat_memory.prop_ctx = self.num_max_context_prop.value
-        app.storage.tab['manager'].chat_memory.prop_summary = self.num_max_summary_prop.value
-        app.storage.tab['manager'].chat_memory.n_levels = self.num_max_summary_levels.value
-        app.storage.tab['manager'].chat_memory.n_tok_summarize = self.num_tokens_summarized.value
-        app.storage.tab['manager'].chat_memory.entity_manager.max_summary_depth = self.num_max_summary_depth.value
+        app.storage.tab['manager'].chat_memory.summary_llm.context_window = int(self.context_window)
+        app.storage.tab['manager'].chat_memory.prop_ctx = self.max_context_prop
+        app.storage.tab['manager'].chat_memory.prop_summary = self.max_summary_prop
+        app.storage.tab['manager'].chat_memory.n_levels = int(self.max_summary_levels)
+        app.storage.tab['manager'].chat_memory.n_tok_summarize = int(self.tokens_summarized)
+        app.storage.tab['manager'].chat_memory.entity_manager.max_summary_depth = int(self.max_summary_depth)
     
     def update_llm_settings(self):
         """Update chat manager with current LLM settings."""
-        print("Updating LLM settings!")
         main_llm = app.storage.tab['manager'].llm
         summary_llm = app.storage.tab['manager'].chat_memory.summary_llm
         # main LLM settings
@@ -572,9 +607,14 @@ class TaterTalkUI:
 
     async def refresh_ui(self):
         """Refresh all UI elements to reflect the current session manager."""
+        # set the loading data flag so update methods ignore 'change' events emitted
+        # while we're setting the new data
+        self.loading_data = True
+
         # wait until we're connected to the client
         await ui.context.client.connected()
         chat_manager = app.storage.tab['manager']
+
         # update settings
         self.main_llm_key = chat_manager.llm.api_key
         self.main_llm_url = chat_manager.llm.base_url
@@ -588,26 +628,30 @@ class TaterTalkUI:
         self.summary_llm_samp = json.dumps(summary_llm.sampling_options, indent=2)
 
         # update the system message
-        self.ta_sys_msg.value = chat_manager.chat_memory.chat_thread.system_prompt
+        self.ta_sys_msg.set_value(chat_manager.chat_memory.chat_thread.system_prompt)
         # update the list of messages
         self.refresh_message_list()
 
         # update memory settings
-        self.ta_summary_prompt.value = chat_manager.chat_memory.summary_prompt
-        self.num_context_window.value = chat_manager.llm.context_window
-        self.num_max_context_prop.value = chat_manager.chat_memory.prop_ctx
-        self.num_max_summary_prop.value = chat_manager.chat_memory.prop_summary
-        self.num_max_summary_levels.value = chat_manager.chat_memory.n_levels
-        self.num_tokens_summarized.value = chat_manager.chat_memory.n_tok_summarize
+        self.summary_prompt = chat_manager.chat_memory.summary_prompt
+        self.context_window = chat_manager.llm.context_window
+        self.max_context_prop = chat_manager.chat_memory.prop_ctx
+        self.max_summary_prop = chat_manager.chat_memory.prop_summary
+        self.max_summary_levels = chat_manager.chat_memory.n_levels
+        self.tokens_summarized = chat_manager.chat_memory.n_tok_summarize
+        self.max_summary_depth = chat_manager.chat_memory.entity_manager.max_summary_depth
         # refresh memory list
         self.refresh_memory_list()
 
         # update entity settings
-        self.ta_entity_prompt.value = chat_manager.chat_memory.entity_manager.prompt_entity_list
+        self.entity_prompt = chat_manager.chat_memory.entity_manager.prompt_entity_list
         self.refresh_entity_list()
 
         # update the list of archived messages
         self.refresh_archived_message_list()
+
+        # turn off loading flag
+        self.loading_data = False
 
     def handle_save(self):
         """Save the session to a JSON file."""
@@ -719,7 +763,7 @@ class TaterTalkUI:
             self.memory_container.scroll_to(percent=1.0)
     
     def update_entity_prompt(self):
-        app.storage.tab['manager'].chat_memory.entity_manager.prompt_entity_list = self.ta_entity_prompt.value
+        app.storage.tab['manager'].chat_memory.entity_manager.prompt_entity_list = self.entity_prompt
     
     def refresh_entity_list(self):
         """Rebuild the GUI list of entities."""
