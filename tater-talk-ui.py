@@ -869,12 +869,20 @@ class TaterTalkUI:
         """Show a dialog with details about context length."""
         # clear old content
         self.dialog_context_display.clear()
+
+        # show placeholder dialog
+        with self.dialog_context_display, ui.card():
+            ui.label("Calculating context size...")
+        self.dialog_context_display.open()
+
         # build new
         chat_manager = app.storage.tab['manager']
 
         # calculate all sizes
         level_sizes = await chat_manager.all_context_sizes()
 
+        # clear placeholder
+        self.dialog_context_display.clear()
         # assemble the dialog
         with self.dialog_context_display, ui.card():
             for part in level_sizes:
@@ -882,9 +890,6 @@ class TaterTalkUI:
                 if part['percent'] >= 0:
                     level_text += " (" + str(part['percent']) + "%)"
                 ui.label(level_text)
-        
-        # open it
-        self.dialog_context_display.open()
     
     async def do_memory_update(self):
         # wait until we are connected to the client
