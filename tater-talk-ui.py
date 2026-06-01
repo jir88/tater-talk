@@ -917,4 +917,6 @@ async def main():
     await tater_ui.setup_ui()
 
 if __name__ in {"__main__", "__mp_main__"}:
-    ui.run(root=main, host='127.0.0.1', port=9091, title="Tater Talk", favicon='🥔')
+    ui.run(root=main, host='127.0.0.1', port=9091, title="Tater Talk", favicon='🥔',
+        binding_refresh_interval=0.2, reconnect_timeout=10
+    )
