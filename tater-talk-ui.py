@@ -961,7 +961,10 @@ class TaterTalkUI:
         # messages are moved to archive
         self.refresh_archived_message_list()
         # indicate that process is finished
-        ui.notify("Finished updating memory!")
+        self.dialog_context_display.clear()
+        with self.dialog_context_display, ui.card():
+            ui.label("Finished updating memory!")
+        self.dialog_context_display.open()
 
 
 
