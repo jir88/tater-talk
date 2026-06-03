@@ -10,11 +10,15 @@ from root_cellar.manager import ChatThread, StructuredHierarchicalMemory, Struct
 
 class TaterTalkUI:
     # make UI settings into bindable properties to make updates more efficient
+    main_llm_server_type = binding.BindableProperty()
+    main_llm_upstream_type = binding.BindableProperty()
     main_llm_key = binding.BindableProperty()
     main_llm_url = binding.BindableProperty()
     main_llm_model = binding.BindableProperty()
     main_llm_samp = binding.BindableProperty()
 
+    summary_llm_server_type = binding.BindableProperty()
+    summary_llm_upstream_type = binding.BindableProperty()
     summary_llm_key = binding.BindableProperty()
     summary_llm_url = binding.BindableProperty()
     summary_llm_model = binding.BindableProperty()
@@ -90,11 +94,15 @@ class TaterTalkUI:
         self.entity_prompt = ""
         
         # LLM settings
+        self.main_llm_server_type = "unknown"
+        self.main_llm_upstream_type = "unknown"
         self.main_llm_key = ""
         self.main_llm_url = ""
         self.main_llm_model = ""
         self.main_llm_samp = ""
         # memory LLM settings
+        self.summary_llm_server_type = "unknown"
+        self.summary_llm_upstream_type = "unknown"
         self.summary_llm_key = ""
         self.summary_llm_url = ""
         self.summary_llm_model = ""
@@ -129,6 +137,8 @@ class TaterTalkUI:
         self.entity_prompt = chat_manager.chat_memory.entity_manager.prompt_entity_list
         
         # LLM settings
+        self.main_llm_server_type = llm.server_type
+        self.main_llm_upstream_type = llm.upstream_type
         self.main_llm_key = llm.api_key
         self.main_llm_url = llm.base_url
         self.main_llm_model = llm.model
@@ -137,6 +147,8 @@ class TaterTalkUI:
             indent=2
         )
         # memory LLM settings
+        self.summary_llm_server_type = summary_llm.server_type
+        self.summary_llm_upstream_type = summary_llm.upstream_type
         self.summary_llm_key = summary_llm.api_key
         self.summary_llm_url = summary_llm.base_url
         self.summary_llm_model = summary_llm.model
@@ -319,6 +331,19 @@ class TaterTalkUI:
                 # toggle to control light/dark theme
                 ui.switch('Dark mode').bind_value(self.dark_setting)
                 # main LLM controls
+                with ui.row().classes("w-1/2"):
+                    # server type
+                    ui.select(
+                        label="Main server type:",
+                        options=["unknown", "llama-swap", "llama-server", "openai"],
+                        value="unknown"
+                    ).bind_value(self, 'main_llm_server_type').classes("w-1/3").mark('disable-on-generate')
+                    # server type
+                    ui.select(
+                        label="Main upstream type:",
+                        options=["unknown", "none", "llama-server", "openai"],
+                        value="unknown"
+                    ).bind_value(self, 'main_llm_upstream_type').classes("w-1/3").mark('disable-on-generate')
                 # main API key
                 input_element = ui.input(
                     label="Main LLM API key:",
@@ -344,7 +369,23 @@ class TaterTalkUI:
                 ).classes("w-full").mark('disable-on-generate')
                 input_element.on("blur", self.update_llm_settings)
                 input_element.bind_value(self, 'main_llm_samp')
+
+                ui.separator()
+
                 # memory LLM controls
+                with ui.row().classes("w-1/2"):
+                    # server type
+                    ui.select(
+                        label="Memory LLM server type:",
+                        options=["unknown", "llama-swap", "llama-server", "openai"],
+                        value="unknown"
+                    ).bind_value(self, 'summary_llm_server_type').classes("w-1/3").mark('disable-on-generate')
+                    # server type
+                    ui.select(
+                        label="Memory LLM upstream type:",
+                        options=["unknown", "none", "llama-server", "openai"],
+                        value="unknown"
+                    ).bind_value(self, 'summary_llm_upstream_type').classes("w-1/3").mark('disable-on-generate')
                 input_element = ui.input(
                     label="Memory LLM API key:",
                 ).classes("w-full").mark('disable-on-generate')
@@ -576,11 +617,15 @@ class TaterTalkUI:
         main_llm = app.storage.tab['manager'].llm
         summary_llm = app.storage.tab['manager'].chat_memory.summary_llm
         # main LLM settings
+        main_llm.server_type = self.main_llm_server_type
+        main_llm.upstream_type = self.main_llm_upstream_type
         main_llm.api_key = self.main_llm_key
         main_llm.base_url = self.main_llm_url
         main_llm.model = self.main_llm_model
         main_llm.sampling_options = json.loads(s=self.main_llm_samp)
         # summary LLM settings
+        summary_llm.server_type = self.summary_llm_server_type
+        summary_llm.upstream_type = self.summary_llm_upstream_type
         summary_llm.api_key = self.summary_llm_key
         summary_llm.base_url = self.summary_llm_url
         summary_llm.model = self.summary_llm_model
@@ -616,12 +661,16 @@ class TaterTalkUI:
         chat_manager = app.storage.tab['manager']
 
         # update settings
+        self.main_llm_server_type = chat_manager.llm.server_type
+        self.main_llm_upstream_type = chat_manager.llm.upstream_type
         self.main_llm_key = chat_manager.llm.api_key
         self.main_llm_url = chat_manager.llm.base_url
         self.main_llm_model = chat_manager.llm.model
         self.main_llm_samp = json.dumps(chat_manager.llm.sampling_options, indent=2)
 
         summary_llm = chat_manager.chat_memory.summary_llm
+        self.summary_llm_server_type = summary_llm.server_type
+        self.summary_llm_upstream_type = summary_llm.upstream_type
         self.summary_llm_key = summary_llm.api_key
         self.summary_llm_url = summary_llm.base_url
         self.summary_llm_model = summary_llm.model
@@ -880,6 +929,9 @@ class TaterTalkUI:
 
         # calculate all sizes
         level_sizes = await chat_manager.all_context_sizes()
+        # this may update the main server types
+        self.main_llm_server_type = chat_manager.llm.server_type
+        self.main_llm_upstream_type = chat_manager.llm.upstream_type
 
         # clear placeholder
         self.dialog_context_display.clear()
