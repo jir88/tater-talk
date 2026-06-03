@@ -948,6 +948,9 @@ class TaterTalkUI:
         await ui.context.client.connected()
         # tell state manager to update memory, ensuring all levels are within limits
         await app.storage.tab['manager'].chat_memory.update_all_memory()
+        # this may update the summary server types
+        self.summary_llm_server_type = app.storage.tab['manager'].chat_memory.summary_llm.server_type
+        self.summary_llm_upstream_type = app.storage.tab['manager'].chat_memory.summary_llm.upstream_type
         # messages are changed
         self.refresh_message_list()
         # memories are changed
